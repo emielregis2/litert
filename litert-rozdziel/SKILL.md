@@ -1,0 +1,39 @@
+---
+name: litert-rozdziel
+description: Rozdziela przetłumaczone w DeepL pliki scalenia (NazwaKatalogu_all_1 pl.txt itd.) z powrotem na osobne pliki o oryginalnych angielskich nazwach z końcówką " pl" (np. Dad's Request pl.txt), na podstawie znaczników [[numer|nazwa]] i pliku spisu NazwaKatalogu_spis_scalenia.txt utworzonych przez skill litert. Używaj ZAWSZE, gdy Darek prosi o "rozdziel", "rozetnij", "podziel przetłumaczone pliki", "odtwórz pliki po tłumaczeniu", "pliki pl po DeepL", albo podaje katalog z przetłumaczonymi plikami scalenia — nawet jeśli nie wspomina o skillu.
+---
+
+# litert-rozdziel — rozdzielanie przetłumaczonych plików scalenia
+
+Dopełnienie skilla `litert`. Cały proces Darka: angielskie pliki → scalenie (`litert`, limit 900 kB) → tłumaczenie w DeepL na polski (wyniki z końcówką ` pl`) → **rozdzielenie z powrotem na oryginalne pliki (ten skill)**.
+
+## Wymagania wejściowe (w katalogu, np. `C:\Users\dariu\Dropbox\Wymina\NAZWA`)
+
+- `NazwaKatalogu_spis_scalenia.txt` — spis z `litert` (NIE tłumaczony), z liniami `    N. Nazwa.txt` pod nazwami plików scalenia.
+- Przetłumaczone pliki scalenia: `NazwaKatalogu_all_1 pl.txt`, `_all_2 pl.txt`, … (lub `NazwaKatalogu_all pl.txt`, gdy scalenie było jedno). Nazwa = nazwa pliku scalenia + ` pl` przed `.txt`.
+- Jeśli w katalogu były pliki > 900 kB, w spisie jest sekcja "Pliki podzielone (nie scalane)", a do DeepL wgrywasz też ich części `Nazwa_1.txt`, `Nazwa_2.txt`, … Przetłumaczone części mają nazwy `Nazwa_1 pl.txt`, `Nazwa_2 pl.txt`, …
+- W przetłumaczonych plikach scalenia znaczniki `=====[[N|Nazwa]]=====`. **Liczy się tylko numer N**; nazwa w znaczniku mogła zostać przetłumaczona i jest ignorowana.
+
+## Zasady
+
+1. Każdy plik wynikowy dostaje **oryginalną angielską nazwę ze spisu + ` pl`**, np. spis: `7. Dad's Request.txt` → `Dad's Request pl.txt`. Zapis: UTF-8, końce linii `\n`, treść bez znacznika.
+2. **Nie nadpisujemy istniejących plików.** Jeśli `X pl.txt` już istnieje, pomijamy go i zgłaszamy; nadpisanie tylko na wyraźne polecenie Darka (flaga `--nadpisz`).
+3. Skrypt **weryfikuje**: czy istnieją wszystkie przetłumaczone pliki scalenia, czy każdy numer ze spisu ma znacznik, czy nie ma nadmiarowych lub zdublowanych znaczników i czy przed pierwszym znacznikiem nie ma tekstu. Pliku, którego znacznika brakuje, NIE zgadujemy: zgłaszamy go w podsumowaniu.
+4. Niczego nie kasujemy i nie ruszamy plików scalenia, spisu ani oryginałów. Treści tłumaczeń nie czytaj ani nie analizuj, to operacja mechaniczna.
+5. **Składanie części dużych plików:** dla każdego pliku z sekcji "Pliki podzielone" skrypt skleja przetłumaczone części (`Nazwa_1 pl.txt` + `Nazwa_2 pl.txt` + …, w kolejności ze spisu) w jeden plik `Nazwa pl.txt`. Jeśli brakuje którejkolwiek przetłumaczonej części, pliku NIE składa i zgłasza, których części brakuje. Przetłumaczone części zostają na dysku (niczego nie kasujemy). Istniejącego `Nazwa pl.txt` nie nadpisuje bez `--nadpisz`.
+6. Pliki z końcówką ` pl` są pomijane przez skill `litert` przy kolejnym scalaniu, więc wyniki nie wejdą w pętlę.
+
+## Procedura
+
+1. Wylistuj katalog (`mcp__Desktop_Commander__list_directory`) i sprawdź, czy są spis oraz pliki `... pl.txt`. Jeśli czegoś brakuje, powiedz czego.
+2. Uruchom skrypt `scripts/rozdziel.py` na komputerze Darka przez `start_process` (zapisz go np. do `%TEMP%\litert_rozdziel.py`):
+   `python "%TEMP%\litert_rozdziel.py" "C:\Users\dariu\Dropbox\Wymina\NAZWA"`
+3. Podsumuj: ile plików utworzono (osobno: rozdzielone ze scaleń i złożone z części), które pominięto i wszystkie linie `UWAGA`. Przy brakach wyjaśnij, co zrobić (np. ponownie przetłumaczyć dany plik scalenia albo sprawdzić, czy DeepL nie zmienił znaczników).
+
+## Gdy DeepL uszkodzi znacznik
+
+Wyrażenie rozpoznające tolerancyjnie traktuje różne znaki `=`, spacje i kreski wokół `[[N|...]]`. Jeśli numeru nie da się odczytać, skrypt zgłasza brak znacznika dla konkretnego numeru i nazwy. Nie próbuj wtedy dzielić po tytułach, bo po tłumaczeniu są po polsku.
+
+## Uwagi
+
+- Język komunikacji: polski.
