@@ -14,13 +14,39 @@ import os, re, sys, argparse
 MARK = re.compile(r"^[\s=\-_*#~]*\[\[\s*(\d+)\s*(?:\|[^\]\n]*)?\]\][\s=\-_*#~]*$")
 
 
+try:  # nazwy plikow z polskimi znakami nie moga wywrocic wypisywania na konsole
+    sys.stdout.reconfigure(errors="replace")
+except Exception:
+    pass
+
+KODOWANIE = {}   # sciezka -> uzyte kodowanie
+POLSKIE = re.compile("[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]")
+# typowe slady UTF-8 odczytanego jako cp1250/cp1252 oraz znak zastepczy
+ZEPSUTE = re.compile("Ä…|Ä™|Ä‡|Å‚|Å„|Å›|Åº|Å¼|Ăł|Ã³|\ufffd")
+
+
 def czytaj(path):
+    """Odczyt z wykrywaniem kodowania: UTF-16 (BOM) -> UTF-8 (z BOM lub bez) -> awaryjnie cp1250."""
     raw = open(path, "rb").read()
-    for enc in ("utf-8-sig", "cp1250"):
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        enc, txt = "utf-16", raw.decode("utf-16")
+    else:
         try:
-            return raw.decode(enc).replace("\r\n", "\n")
+            enc, txt = "utf-8", raw.decode("utf-8-sig")
         except UnicodeDecodeError:
-            continue
+            enc, txt = "cp1250", raw.decode("cp1250", errors="replace")
+    KODOWANIE[path] = enc
+    return txt.replace("\r\n", "\n")
+
+
+def sprawdz_pl(nazwa, path, tekst, problemy):
+    """Ostrzega, gdy polskie znaki w przetlumaczonym pliku wygladaja na zepsute lub ich brak."""
+    if KODOWANIE.get(path) == "cp1250":
+        problemy.append("%s: odczytano jako cp1250 (nie UTF-8) - sprawdz polskie znaki" % nazwa)
+    if ZEPSUTE.search(tekst):
+        problemy.append("%s: wykryto zepsute polskie znaki (np. Å‚, Ä…, U+FFFD) - plik nie jest poprawnym UTF-8" % nazwa)
+    elif not POLSKIE.search(tekst):
+        problemy.append("%s: brak polskich znakow diakrytycznych - czy to na pewno tlumaczenie?" % nazwa)
 
 
 def parsuj_spis(path):
@@ -71,7 +97,9 @@ def main():
             problemy.append("BRAK przetlumaczonego pliku: " + pl_name)
             continue
         czesci, cur, przed = {}, None, []
-        for line in czytaj(pl_path).split("\n"):
+        tekst_pl = czytaj(pl_path)
+        sprawdz_pl(pl_name, pl_path, tekst_pl, problemy)
+        for line in tekst_pl.split("\n"):
             m = MARK.match(line)
             if m:
                 cur = int(m.group(1))
@@ -124,13 +152,14 @@ def main():
         kawalki = []
         for c in pl_czesci:
             t = czytaj(os.path.join(d, c))
+            sprawdz_pl(c, os.path.join(d, c), t, problemy)
             kawalki.append(t if t.endswith("\n") else t + "\n")
         tekst = "".join(kawalki)
         with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(tekst)
         zapisane += 1
         print("OK (zlozono z %d czesci)" % len(pl_czesci), out_name, len(tekst.encode("utf-8")), "bajtow")
-    print("Zapisano plikow:", zapisane)
+    print("Zapisano plikow:", zapisane, "(UTF-8 bez BOM, konce linii LF)")
     for p in problemy:
         print("UWAGA:", p)
     return 0 if not problemy else 2

@@ -30,6 +30,15 @@ Dopełnienie skilla `litert`. Cały proces Darka: angielskie pliki → scalenie 
    `python "%TEMP%\litert_rozdziel.py" "C:\Users\dariu\Dropbox\Wymina\NAZWA"`
 3. Podsumuj: ile plików utworzono (osobno: rozdzielone ze scaleń i złożone z części), które pominięto i wszystkie linie `UWAGA`. Przy brakach wyjaśnij, co zrobić (np. ponownie przetłumaczyć dany plik scalenia albo sprawdzić, czy DeepL nie zmienił znaczników).
 
+## Kodowanie i polskie znaki
+
+Przetłumaczone pliki zawierają polskie znaki diakrytyczne (ą ć ę ł ń ó ś ź ż). Skrypt czyta pliki `pl` z automatycznym wykrywaniem kodowania (UTF-16 z BOM → UTF-8 z BOM lub bez → awaryjnie cp1250), a wyniki zapisuje zawsze jako **UTF-8 bez BOM**, końce linii `\n`. Wypisuje `UWAGA`, gdy:
+- plik `pl` nie jest UTF-8 (odczytano jako cp1250),
+- wykryto typowe ślady zepsutych znaków (np. `Å‚`, `Ä…`, `Ăł`, znak zastępczy U+FFFD),
+- w pliku nie ma żadnego polskiego znaku (tłumaczenie mogło się nie udać albo znaki zostały wycięte).
+
+Przy takim ostrzeżeniu NIE naprawiaj tekstu "na oko". Poproś Darka o ponowne zapisanie/pobranie tłumaczenia z DeepL jako UTF-8 i powtórz rozdzielanie z `--nadpisz`.
+
 ## Gdy DeepL uszkodzi znacznik
 
 Wyrażenie rozpoznające tolerancyjnie traktuje różne znaki `=`, spacje i kreski wokół `[[N|...]]`. Jeśli numeru nie da się odczytać, skrypt zgłasza brak znacznika dla konkretnego numeru i nazwy. Nie próbuj wtedy dzielić po tytułach, bo po tłumaczeniu są po polsku.

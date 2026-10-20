@@ -5,6 +5,22 @@ Uzycie:  python scal.py "C:\\sciezka\\do\\KATALOG" [--limit 900000]
 """
 import os, sys, glob, argparse
 
+try:  # nazwy plikow z polskimi/specjalnymi znakami nie moga wywrocic wypisywania na konsole
+    sys.stdout.reconfigure(errors="replace")
+except Exception:
+    pass
+
+
+def czytaj_plik(path):
+    """Zwraca (tekst, kodowanie). Kolejnosc: UTF-16 (z BOM) -> UTF-8 (z BOM lub bez) -> awaryjnie cp1250."""
+    raw = open(path, "rb").read()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return raw.decode("utf-16"), "utf-16"
+    try:
+        return raw.decode("utf-8-sig"), "utf-8"
+    except UnicodeDecodeError:
+        return raw.decode("cp1250", errors="replace"), "cp1250"
+
 
 def dziel(txt, limit):
     """Dzieli tekst linia po linii na mozliwie rowne czesci, kazda <= limit bajtow (UTF-8).
@@ -117,16 +133,13 @@ def main():
         return m and (m.group(1) + ".txt").lower() in all_txt and (m.group(1) + ".txt").lower() != f.lower()
     stare_czesci = [f for f in cands if czesc_z(f)]
     names = [f for f in cands if f not in stare_czesci]
-    items, duze = [], []
+    items, duze, ostrz_kod = [], [], []
     for n in names:
-        raw = open(os.path.join(d, n), "rb").read()
-        txt = None
-        for enc in ("utf-8-sig", "cp1250"):
-            try:
-                txt = raw.decode(enc)
-                break
-            except UnicodeDecodeError:
-                continue
+        txt, enc = czytaj_plik(os.path.join(d, n))
+        if enc != "utf-8":
+            ostrz_kod.append("%s: odczytano jako %s (nie UTF-8) - sprawdz znaki specjalne" % (n, enc))
+        if "\ufffd" in txt:
+            ostrz_kod.append("%s: zawiera znak zastepczy U+FFFD (znaki uszkodzone juz w zrodle)" % n)
         txt = txt.replace("\r\n", "\n").strip("\n") + "\n"
         sz = len(txt.encode("utf-8"))
         if sz > a.limit:
@@ -203,6 +216,9 @@ def main():
         fh.write("\n".join(spis).rstrip("\n") + "\n")
     print(spis_name, "zapisany")
     print("Pominiete (pl/_copy) nie sa wypisywane; scalono plikow:", len(items))
+    print("Kodowanie wyniku: UTF-8 bez BOM, konce linii LF")
+    for w in ostrz_kod:
+        print("UWAGA (kodowanie):", w)
 
 
 if __name__ == "__main__":
