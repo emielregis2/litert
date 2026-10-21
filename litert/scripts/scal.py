@@ -27,6 +27,26 @@ def czytaj_plik(path):
         return raw.decode("cp1250", errors="replace"), "cp1250"
 
 
+def _bez_pustych_na_granicach(lines, ranges):
+    """Wycina puste linie z brzegow czesci (czesc nie zaczyna sie ani nie konczy pusta linia, bo DeepL przycina
+    puste linie na poczatku pliku). Zwraca (teksty czesci, [liczba pustych linii miedzy czescia i-1 a i, dla i>=1])."""
+    trimmed = []
+    for k, c in enumerate(ranges):
+        lo, hi, lead, trail = c[0], c[-1] + 1, 0, 0
+        if k > 0:
+            while lo < hi and lines[lo] == "\n":
+                lo += 1; lead += 1
+        if k < len(ranges) - 1:
+            while hi > lo and lines[hi - 1] == "\n":
+                hi -= 1; trail += 1
+        if lo >= hi:                                    # zabezpieczenie: czesc z samych pustych linii zostaje bez zmian
+            lo, hi, lead, trail = c[0], c[-1] + 1, 0, 0
+        trimmed.append((lo, hi, lead, trail))
+    teksty = ["".join(lines[lo:hi]) for lo, hi, _, _ in trimmed]
+    przerwy = [trimmed[k - 1][3] + trimmed[k][2] for k in range(1, len(trimmed))]
+    return teksty, przerwy
+
+
 def dziel(txt, limit):
     """Dzieli tekst linia po linii na mozliwie rowne czesci, kazda <= limit bajtow (UTF-8).
     Zwraca liste stringow. Linia dluzsza niz limit trafia sama do czesci (nie jest przecinana)."""
@@ -60,7 +80,7 @@ def dziel(txt, limit):
             parts.append(list(range(start, i)))
             remaining -= csize
         if ok and i >= len(lines):
-            return ["".join(lines[j] for j in c) for c in parts if c]
+            return _bez_pustych_na_granicach(lines, [c for c in parts if c])
         n += 1
 
 
@@ -260,13 +280,13 @@ def main():
             m = re.match(r"^(.*)_(\d+)\.txt$", f, re.I)
             if m.group(1).lower() == stem.lower():
                 os.remove(os.path.join(d, f)); stare_czesci.remove(f)
-        czesci = dziel(txt, a.limit)
+        czesci, przerwy = dziel(txt, a.limit)
         nazwy = []
         for i, c in enumerate(czesci, 1):
             fn = "%s_%d.txt" % (stem, i)
             with open(os.path.join(d, fn), "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(c)
-            nazwy.append((fn, len(c.encode("utf-8"))))
+            nazwy.append((fn, len(c.encode("utf-8")), przerwy[i - 2] if i >= 2 else None))
             print("   [podzial]", fn, len(c.encode("utf-8")), "bajtow")
         podzielone.append((n, sz, nazwy))
     if stare_czesci:
@@ -304,8 +324,8 @@ def main():
         spis.append("Pliki podzielone (nie scalane):")
         for n, sz, nazwy in podzielone:
             spis.append(n + " (" + str(sz) + " bajtow)")
-            for fn, fsz in nazwy:
-                spis.append("    " + fn + " (" + str(fsz) + " bajtow)")
+            for fn, fsz, pr in nazwy:
+                spis.append("    " + fn + " (" + str(fsz) + " bajtow" + ("" if pr is None else ", przerwa " + str(pr)) + ")")
         spis.append("")
     # Spis scalenia: oryginalne nazwy plikow w kazdym pliku scalenia
     with open(os.path.join(d, spis_name), "w", encoding="utf-8", newline="\n") as fh:

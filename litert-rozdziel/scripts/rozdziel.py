@@ -27,6 +27,7 @@ except Exception:
     pass
 
 KODOWANIE = {}   # sciezka -> uzyte kodowanie
+PRZERWY = {}     # nazwa czesci -> liczba pustych linii miedzy ta czescia a poprzednia (ze spisu)
 POLSKIE = re.compile("[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]")
 # typowe slady UTF-8 odczytanego jako cp1250/cp1252 oraz znak zastepczy
 ZEPSUTE = re.compile("Ä…|Ä™|Ä‡|Å‚|Å„|Å›|Åº|Å¼|Ăł|Ã³|\ufffd")
@@ -66,11 +67,13 @@ def parsuj_spis(path):
             sekcja_podz = True
             continue
         if sekcja_podz:
-            m = re.match(r"^(\s*)(.+?\.txt)\s*(?:\(\d+ bajtow\))?\s*$", line)
+            m = re.match(r"^(\s*)(.+?\.txt)\s*(?:\(\d+ bajtow(?:, przerwa (\d+))?\))?\s*$", line)
             if m and m.group(1) == "" and line.strip():
                 podzielone.append((m.group(2), []))
             elif m and m.group(1) and podzielone:
                 podzielone[-1][1].append(m.group(2))
+                if m.group(3) is not None:
+                    PRZERWY[m.group(2)] = int(m.group(3))
             continue
         m = re.match(r"^\s+(\d+)\.\s+(.+?)\s*$", line)
         if m and cur:
@@ -212,8 +215,14 @@ def main():
         for c in pl_czesci:
             t = czytaj(os.path.join(d, c))
             sprawdz_pl(c, os.path.join(d, c), t, problemy)
-            kawalki.append(t if t.endswith("\n") else t + "\n")
-        tekst = "".join(kawalki)
+            kawalki.append(t)
+        if all(cn in PRZERWY for cn in czesci_nazwy[1:]):
+            # nowy format spisu: czesci nie maja pustych linii na brzegach, a liczba pustych linii miedzy nimi jest w spisie
+            tekst = kawalki[0].strip("\n") + "\n"
+            for cn, kw in zip(czesci_nazwy[1:], kawalki[1:]):
+                tekst += "\n" * PRZERWY[cn] + kw.strip("\n") + "\n"
+        else:                                       # starszy spis (bez informacji o przerwach): laczenie bez zmian
+            tekst = "".join(k if k.endswith("\n") else k + "\n" for k in kawalki)
         with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(tekst)
         zapisane += 1
