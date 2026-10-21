@@ -19,7 +19,7 @@ Oryginalna Nazwa pl.txt
 
 Scala pliki `.txt` z katalogu w jak najmniej plików zbiorczych o rozmiarze do 900 000 bajtów.
 
-- pomija wersje przetłumaczone (`... pl.txt`) i kopie (`..._copy(1).txt`),
+- pomija wersje przetłumaczone (`... pl.txt`); kopie (`..._copy(1).txt`) nie są scalane, ale przed scaleniem są analizowane: nowsza i większa kopia zastępuje oryginał (oryginał trafia do `_zastapione`), pozostałe przypadki trafiają do raportu "do decyzji" (flagi `--tylko-analiza-kopii`, `--nie-zastepuj-kopii`),
 - pakuje pliki wg rozmiaru (First Fit Decreasing), w każdym pliku scalenia pliki idą alfabetycznie,
 - przed każdym plikiem wstawia znacznik `=====[[N|Nazwa]]=====`,
 - tworzy `NazwaKatalogu_spis_scalenia.txt` (numer i nazwa każdego pliku w danym scaleniu),

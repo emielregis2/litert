@@ -64,6 +64,85 @@ def dziel(txt, limit):
         n += 1
 
 
+def analizuj_kopie(d, zastepuj=True):
+    """Analiza kopii NazwaOryginalu_copy(N).txt wzgledem oryginalow PRZED scalaniem.
+    - kopia NOWSZA i WIEKSZA od oryginalu -> zastepuje oryginal (oryginal trafia do podkatalogu _zastapione),
+    - kopia identyczna (ta sama tresc) -> bez zmian (kopia niepotrzebna, nie jest scalana),
+    - kazda inna sytuacja (mniejsza, starsza-ale-wieksza, ten sam rozmiar a inna tresc, brak oryginalu)
+      -> tylko raport DO DECYZJI uzytkownika, nic sie nie zmienia.
+    Rozmiary porownywane po normalizacji (UTF-8, LF), zeby kodowanie/konce linii nie fałszowaly wyniku.
+    Zwraca liste (status, nazwa kopii, opis)."""
+    import re, shutil, datetime
+    rx = re.compile(r"^(.*)_copy\((\d+)\)(\.txt)$", re.I)
+    pliki = {f.lower(): f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))}
+    org_dir = os.path.join(d, "org")
+    org_pliki = {f.lower(): f for f in os.listdir(org_dir)} if os.path.isdir(org_dir) else {}
+    kopie = []
+    for f in pliki.values():
+        m = rx.match(f)
+        if m:
+            kopie.append((f, m.group(1) + m.group(3), int(m.group(2))))
+    if not kopie:
+        return []
+
+    def tekst(path):
+        t, _ = czytaj_plik(path)
+        return t.replace("\r\n", "\n").strip("\n") + "\n"
+
+    def czas(ts):
+        return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+
+    wyniki = []
+    for kf, on, nr in sorted(kopie, key=lambda x: (x[1].lower(), x[2])):
+        kp = os.path.join(d, kf)
+        if on.lower() in pliki:
+            op, gdzie = os.path.join(d, pliki[on.lower()]), "katalog"
+        elif on.lower() in org_pliki:
+            op, gdzie = os.path.join(org_dir, org_pliki[on.lower()]), "org"
+        else:
+            wyniki.append(("BRAK_ORYGINALU", kf, "nie znaleziono oryginalu '%s' (ani w katalogu, ani w org)" % on))
+            continue
+        tk, to = tekst(kp), tekst(op)
+        sk, so = len(tk.encode("utf-8")), len(to.encode("utf-8"))
+        mk, mo = os.path.getmtime(kp), os.path.getmtime(op)
+        opis = "kopia %d B (%s) | oryginal %d B (%s)%s" % (sk, czas(mk), so, czas(mo), "" if gdzie == "katalog" else " [oryginal w org]")
+        if tk == to:
+            wyniki.append(("IDENTYCZNA", kf, opis + " | ta sama tresc"))
+        elif sk > so and mk > mo:
+            if zastepuj and gdzie == "katalog":
+                kat = os.path.join(d, "_zastapione")
+                os.makedirs(kat, exist_ok=True)
+                cel = os.path.join(kat, os.path.basename(op))
+                if os.path.exists(cel):
+                    cel = os.path.join(kat, "%s_%s" % (datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), os.path.basename(op)))
+                shutil.move(op, cel)
+                shutil.move(kp, op)
+                pliki.pop(kf.lower(), None)
+                wyniki.append(("ZASTEPIONO", kf, opis + " | oryginal zachowany w _zastapione"))
+            else:
+                powod = "tryb tylko-analiza" if gdzie == "katalog" else "oryginal jest w org, nie zastepuje automatycznie"
+                wyniki.append(("DO_DECYZJI", kf, opis + " | kopia nowsza i wieksza (kandydat do zastapienia; " + powod + ")"))
+        elif sk < so:
+            wyniki.append(("DO_DECYZJI", kf, opis + " | kopia MNIEJSZA od oryginalu"))
+        elif sk > so:
+            wyniki.append(("DO_DECYZJI", kf, opis + " | kopia wieksza, ale STARSZA od oryginalu"))
+        else:
+            wyniki.append(("DO_DECYZJI", kf, opis + " | ten sam rozmiar, ale INNA tresc"))
+
+    print("=== ANALIZA KOPII _copy: %d plikow ===" % len(wyniki))
+    for status, tytul in (("ZASTEPIONO", "zastapiono oryginal nowsza i wieksza kopia"),
+                          ("IDENTYCZNA", "kopia identyczna z oryginalem (niepotrzebna, nie jest scalana)"),
+                          ("DO_DECYZJI", "DO DECYZJI UZYTKOWNIKA (nic nie zmieniono)"),
+                          ("BRAK_ORYGINALU", "DO DECYZJI: kopia bez oryginalu")):
+        grupa = [w for w in wyniki if w[0] == status]
+        if grupa:
+            print("%s: %d" % (tytul, len(grupa)))
+            for _, nazwa, opis in grupa:
+                print("   - %s\n       %s" % (nazwa, opis))
+    print("=== koniec analizy kopii ===")
+    return wyniki
+
+
 def pakuj(items, limit):
     """Zwraca liste grup (list elementow items) uzywajac First Fit Decreasing, a gdy wynik
     przekracza dolna granice liczby plikow - probuje poprawic losowymi permutacjami."""
@@ -102,11 +181,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
     ap.add_argument("--limit", type=int, default=900000, help="maks. rozmiar pliku scalenia w bajtach")
+    ap.add_argument("--nie-zastepuj-kopii", action="store_true", help="analizuj kopie _copy, ale niczego nie zastepuj")
+    ap.add_argument("--tylko-analiza-kopii", action="store_true", help="tylko raport o kopiach _copy (bez zmian i bez scalania)")
     a = ap.parse_args()
 
     d = os.path.normpath(a.katalog)
     base = os.path.basename(d) + "_all"
     spis_name = os.path.basename(d) + "_spis_scalenia.txt"
+
+    # Analiza kopii _copy PRZED scalaniem (nowsza i wieksza kopia zastepuje oryginal; reszta do decyzji uzytkownika)
+    analizuj_kopie(d, zastepuj=not (a.nie_zastepuj_kopii or a.tylko_analiza_kopii))
+    if a.tylko_analiza_kopii:
+        return 0
 
     # Kasujemy WYLACZNIE wlasne pliki scalenia (base.txt, base_N.txt) i spis.
     # Przetlumaczone pliki (base_N pl.txt) i wszystko inne zostaje nietkniete.
