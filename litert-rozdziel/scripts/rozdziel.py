@@ -11,7 +11,10 @@ Gdy rozdzielanie jest KOMPLETNE (kazdy plik ze spisu ma swoj odpowiednik "pl", b
 "org" wszystko poza wynikami: angielskie oryginaly, pliki scalenia (_all_N.txt) i ich tlumaczenia (_all_N pl.txt),
 czesci duzych plikow i ich tlumaczenia oraz spis. Nic nie kasuje i nie nadpisuje.
 
-Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org]
+Brakujace przetlumaczone pliki skrypt sam wypakowuje z archiwum .zip lezacego w katalogu (np. "DeepL Translations ... .zip"),
+tylko te brakujace, bez nadpisywania; wylaczenie: --bez-zip.
+
+Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org] [--bez-zip]
 """
 import os, re, sys, argparse, shutil
 
@@ -81,11 +84,57 @@ def parsuj_spis(path):
     return pliki, nazwy, w_pliku, podzielone
 
 
+def uzupelnij_z_zip(d, oczekiwane):
+    """Brakujace przetlumaczone pliki (lista nazw) probuje wypakowac z archiwow .zip lezacych w katalogu
+    (np. 'DeepL Translations ... .zip'). Wypakowuje TYLKO brakujace pliki o oczekiwanych nazwach (dopasowanie po
+    nazwie, bez sciezek z archiwum), nigdy nie nadpisuje istniejacych plikow i nie kasuje archiwum.
+    Gdy ten sam plik jest w kilku archiwach, wybiera najnowsze archiwum."""
+    import zipfile
+    brak = [n for n in oczekiwane if not os.path.exists(os.path.join(d, n))]
+    if not brak:
+        return []
+    zipy = sorted((f for f in os.listdir(d) if f.lower().endswith(".zip") and os.path.isfile(os.path.join(d, f))),
+                  key=lambda f: os.path.getmtime(os.path.join(d, f)), reverse=True)
+    if not zipy:
+        return []
+    wypakowane = []
+    for zn in zipy:
+        if not brak:
+            break
+        try:
+            z = zipfile.ZipFile(os.path.join(d, zn))
+        except zipfile.BadZipFile:
+            print("UWAGA: ZIP: uszkodzone archiwum, pomijam:", zn)
+            continue
+        wpisy = {}
+        for info in z.infolist():
+            if not info.is_dir():
+                wpisy.setdefault(os.path.basename(info.filename.replace("\\", "/")).lower(), info)
+        for n in list(brak):
+            info = wpisy.get(n.lower())
+            if info is None:
+                continue
+            dane = z.read(info)                      # zipfile weryfikuje sume kontrolna CRC
+            try:
+                with open(os.path.join(d, n), "xb") as fh:   # tryb 'x': nigdy nie nadpisuje
+                    fh.write(dane)
+            except FileExistsError:
+                continue
+            wypakowane.append((n, zn, len(dane)))
+            brak.remove(n)
+            print("ZIP: wypakowano brakujacy plik %s z archiwum %s (%d bajtow)" % (n, zn, len(dane)))
+        z.close()
+    if brak:
+        print("ZIP: w archiwach (%s) nie znaleziono: %s" % (", ".join(zipy), ", ".join(brak)))
+    return wypakowane
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
     ap.add_argument("--nadpisz", action="store_true", help="nadpisz istniejace pliki wynikowe")
     ap.add_argument("--bez-org", action="store_true", help="nie przenos plikow zrodlowych do podkatalogu org")
+    ap.add_argument("--bez-zip", action="store_true", help="nie uzupelniaj brakujacych tlumaczen z archiwow .zip w katalogu")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
     spis_path = os.path.join(d, os.path.basename(d) + "_spis_scalenia.txt")
@@ -95,6 +144,9 @@ def main():
             print("      Spis jest w podkatalogu org - pliki zrodlowe zostaly juz przeniesione po poprzednim rozdzieleniu.")
         return 1
     pliki, nazwy, w_pliku, podzielone = parsuj_spis(spis_path)
+    if not a.bez_zip:   # brakujace przetlumaczone pliki wypakuj z archiwum .zip z DeepL (jesli lezy w katalogu)
+        oczek_pl = [pl[:-4] + " pl.txt" for pl in pliki] + [c[:-4] + " pl.txt" for _, cz in podzielone for c in cz]
+        uzupelnij_z_zip(d, oczek_pl)
     problemy, zapisane = [], 0
 
     for plik in pliki:
