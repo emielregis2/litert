@@ -7,9 +7,13 @@ Granice wyznaczaja znaczniki  =====[[N|Nazwa]]=====  - liczy sie tylko numer N; 
 Dodatkowo sklada przetlumaczone czesci duzych plikow (Nazwa_1 pl.txt, Nazwa_2 pl.txt, ...) w jeden plik "Nazwa pl.txt"
 na podstawie sekcji "Pliki podzielone" ze spisu.
 
-Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz]
+Gdy rozdzielanie jest KOMPLETNE (kazdy plik ze spisu ma swoj odpowiednik "pl", brak ostrzezen), przenosi do podkatalogu
+"org" wszystko poza wynikami: angielskie oryginaly, pliki scalenia (_all_N.txt) i ich tlumaczenia (_all_N pl.txt),
+czesci duzych plikow i ich tlumaczenia oraz spis. Nic nie kasuje i nie nadpisuje.
+
+Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org]
 """
-import os, re, sys, argparse
+import os, re, sys, argparse, shutil
 
 MARK = re.compile(r"^[\s=\-_*#~]*\[\[\s*(\d+)\s*(?:\|[^\]\n]*)?\]\][\s=\-_*#~]*$")
 
@@ -81,11 +85,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
     ap.add_argument("--nadpisz", action="store_true", help="nadpisz istniejace pliki wynikowe")
+    ap.add_argument("--bez-org", action="store_true", help="nie przenos plikow zrodlowych do podkatalogu org")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
     spis_path = os.path.join(d, os.path.basename(d) + "_spis_scalenia.txt")
     if not os.path.exists(spis_path):
         print("BLAD: brak pliku spisu:", spis_path)
+        if os.path.exists(os.path.join(d, "org", os.path.basename(spis_path))):
+            print("      Spis jest w podkatalogu org - pliki zrodlowe zostaly juz przeniesione po poprzednim rozdzieleniu.")
         return 1
     pliki, nazwy, w_pliku, podzielone = parsuj_spis(spis_path)
     problemy, zapisane = [], 0
@@ -162,6 +169,41 @@ def main():
     print("Zapisano plikow:", zapisane, "(UTF-8 bez BOM, konce linii LF)")
     for p in problemy:
         print("UWAGA:", p)
+
+    # Porzadkowanie: gdy wszystko komplet, przenosimy materialy zrodlowe do ./org (nic nie kasujemy)
+    if a.bez_org:
+        print("ORG: pominieto (--bez-org)")
+    else:
+        krytyczne = [p for p in problemy if not p.startswith("POMINIETO")]
+        wyniki = [nazwy[nr][:-4] + " pl.txt" for nr in sorted(nazwy)] + [o[:-4] + " pl.txt" for o, _ in podzielone]
+        brak_wynikow = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
+        if krytyczne or brak_wynikow or not wyniki:
+            print("ORG: nie przenosze plikow - rozdzielanie niekompletne (ostrzezenia: %d, brakujace wyniki: %d)"
+                  % (len(krytyczne), len(brak_wynikow)))
+        else:
+            do_przen = [nazwy[nr] for nr in sorted(nazwy)]                                   # angielskie oryginaly
+            do_przen += list(pliki) + [pl[:-4] + " pl.txt" for pl in pliki]                  # scalenia i ich tlumaczenia
+            for orig, czesci_n in podzielone:                                                # duze pliki: oryginal, czesci, tlumaczenia czesci
+                do_przen += [orig] + list(czesci_n) + [c[:-4] + " pl.txt" for c in czesci_n]
+            do_przen.append(os.path.basename(spis_path))                                     # spis
+            wyniki_low = {w.lower() for w in wyniki}
+            org = os.path.join(d, "org")
+            os.makedirs(org, exist_ok=True)
+            przen, istnieje = [], []
+            for n in dict.fromkeys(do_przen):
+                if n.lower() in wyniki_low:
+                    continue                                                                  # wynikow nigdy nie przenosimy
+                zrodlo, cel = os.path.join(d, n), os.path.join(org, n)
+                if not os.path.exists(zrodlo):
+                    continue
+                if os.path.exists(cel):
+                    istnieje.append(n)
+                    continue
+                shutil.move(zrodlo, cel)
+                przen.append(n)
+            print("ORG: przeniesiono %d plikow do %s" % (len(przen), org))
+            for n in istnieje:
+                print("UWAGA: ORG: nie przeniesiono (taki plik juz jest w org):", n)
     return 0 if not problemy else 2
 
 

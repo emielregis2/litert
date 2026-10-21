@@ -38,10 +38,11 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 - nazwy plików wynikowych pochodzą ze spisu,
 - nie nadpisuje istniejących plików (flaga `--nadpisz`),
 - zgłasza brakujące, zdublowane i nadmiarowe znaczniki; nie zapisuje pliku, który mógłby się skleić z sąsiednim.
+- po udanym i kompletnym rozdzieleniu przenosi do podkatalogu `org` wszystko poza wynikami (oryginały, pliki scalenia z tłumaczeniami, spis), niczego nie kasując; wyłączane flagą `--bez-org`,
 - składa przetłumaczone części dużych plików (`Nazwa_1 pl.txt`, `Nazwa_2 pl.txt`, ...) w jeden `Nazwa pl.txt` według sekcji "Pliki podzielone" ze spisu; gdy brakuje którejś części, nie składa pliku i to zgłasza.
 
 ```
-python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz]
+python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org]
 ```
 
 ## Kodowanie i polskie znaki

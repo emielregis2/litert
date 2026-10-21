@@ -180,6 +180,10 @@ def main():
     if stare_czesci:
         print("UWAGA: pominalem w scalaniu prawdopodobne czesci (oryginal nie jest juz duzy):", ", ".join(stare_czesci))
 
+    if not items and not duze:
+        print("Brak plikow do scalenia (moze oryginaly zostaly przeniesione do podkatalogu org?) - nic nie zapisano.")
+        return 0
+
     # Pakowanie: jak najmniej plikow scalenia, maksymalne wypelnienie limitu (bin packing).
     # Koszt pliku = rozmiar + 2 bajty separatora, pojemnosc = limit + 2 (separator jest tylko MIEDZY plikami).
     groups = pakuj(items, a.limit)
