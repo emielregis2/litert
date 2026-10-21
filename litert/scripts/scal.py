@@ -12,12 +12,17 @@ except Exception:
 
 
 def czytaj_plik(path):
-    """Zwraca (tekst, kodowanie). Kolejnosc: UTF-16 (z BOM) -> UTF-8 (z BOM lub bez) -> awaryjnie cp1250."""
+    """Zwraca (tekst, kodowanie). Kolejnosc: UTF-16 (z BOM) -> UTF-8 (z BOM lub bez) ->
+    cp1252 (zwykle "ANSI" angielskich plikow z Windows) -> awaryjnie cp1250."""
     raw = open(path, "rb").read()
     if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
         return raw.decode("utf-16"), "utf-16"
     try:
         return raw.decode("utf-8-sig"), "utf-8"
+    except UnicodeDecodeError:
+        pass
+    try:
+        return raw.decode("cp1252"), "cp1252"
     except UnicodeDecodeError:
         return raw.decode("cp1250", errors="replace"), "cp1250"
 
@@ -133,11 +138,12 @@ def main():
         return m and (m.group(1) + ".txt").lower() in all_txt and (m.group(1) + ".txt").lower() != f.lower()
     stare_czesci = [f for f in cands if czesc_z(f)]
     names = [f for f in cands if f not in stare_czesci]
-    items, duze, ostrz_kod = [], [], []
+    items, duze, ostrz_kod, kodowania = [], [], [], {}
     for n in names:
         txt, enc = czytaj_plik(os.path.join(d, n))
-        if enc != "utf-8":
-            ostrz_kod.append("%s: odczytano jako %s (nie UTF-8) - sprawdz znaki specjalne" % (n, enc))
+        kodowania[enc] = kodowania.get(enc, 0) + 1
+        if enc in ("utf-16", "cp1250"):      # cp1252 to zwykle ANSI - normalne, bez ostrzezenia
+            ostrz_kod.append("%s: odczytano jako %s (nietypowe kodowanie) - sprawdz znaki specjalne" % (n, enc))
         if "\ufffd" in txt:
             ostrz_kod.append("%s: zawiera znak zastepczy U+FFFD (znaki uszkodzone juz w zrodle)" % n)
         txt = txt.replace("\r\n", "\n").strip("\n") + "\n"
@@ -220,6 +226,7 @@ def main():
         fh.write("\n".join(spis).rstrip("\n") + "\n")
     print(spis_name, "zapisany")
     print("Pominiete (pl/_copy) nie sa wypisywane; scalono plikow:", len(items))
+    print("Kodowanie wejscia: " + ", ".join("%s: %d" % (k, v) for k, v in sorted(kodowania.items())))
     print("Kodowanie wyniku: UTF-8 bez BOM, konce linii LF")
     for w in ostrz_kod:
         print("UWAGA (kodowanie):", w)
