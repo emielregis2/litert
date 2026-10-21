@@ -39,7 +39,7 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 - nie nadpisuje istniejących plików (flaga `--nadpisz`),
 - zgłasza brakujące, zdublowane i nadmiarowe znaczniki; nie zapisuje pliku, który mógłby się skleić z sąsiednim.
 - brakujące przetłumaczone pliki wypakowuje sam z archiwum `.zip` z DeepL leżącego w katalogu (tylko brakujące, bez nadpisywania; wyłączane flagą `--bez-zip`),
-- po udanym i kompletnym rozdzieleniu przenosi do podkatalogu `org` wszystko poza wynikami (oryginały, pliki scalenia z tłumaczeniami, spis), niczego nie kasując; wyłączane flagą `--bez-org`,
+- po udanym i kompletnym rozdzieleniu przenosi do podkatalogu `org` wszystko poza wynikami (oryginały, pliki scalenia z tłumaczeniami, spis i archiwa `.zip`), niczego nie kasując; wyłączane flagą `--bez-org`,
 - składa przetłumaczone części dużych plików (`Nazwa_1 pl.txt`, `Nazwa_2 pl.txt`, ...) w jeden `Nazwa pl.txt` według sekcji "Pliki podzielone" ze spisu; gdy brakuje którejś części, nie składa pliku i to zgłasza. Puste linie na granicach części są zapisywane w spisie (`przerwa N`) i przywracane przy składaniu, bo DeepL przycina puste linie na początku pliku.
 
 ```

@@ -9,7 +9,7 @@ na podstawie sekcji "Pliki podzielone" ze spisu.
 
 Gdy rozdzielanie jest KOMPLETNE (kazdy plik ze spisu ma swoj odpowiednik "pl", brak ostrzezen), przenosi do podkatalogu
 "org" wszystko poza wynikami: angielskie oryginaly, pliki scalenia (_all_N.txt) i ich tlumaczenia (_all_N pl.txt),
-czesci duzych plikow i ich tlumaczenia oraz spis. Nic nie kasuje i nie nadpisuje.
+czesci duzych plikow i ich tlumaczenia, spis oraz archiwa .zip z katalogu. Nic nie kasuje i nie nadpisuje.
 
 Brakujace przetlumaczone pliki skrypt sam wypakowuje z archiwum .zip lezacego w katalogu (np. "DeepL Translations ... .zip"),
 tylko te brakujace, bez nadpisywania; wylaczenie: --bez-zip.
@@ -262,7 +262,18 @@ def main():
                     continue
                 shutil.move(zrodlo, cel)
                 przen.append(n)
-            print("ORG: przeniesiono %d plikow do %s" % (len(przen), org))
+            # Archiwa .zip z katalogu (np. pobrane z DeepL) tez trafiaja do org - po udanym i kompletnym rozdzieleniu
+            zipy = sorted(f for f in os.listdir(d) if f.lower().endswith(".zip") and os.path.isfile(os.path.join(d, f)))
+            przen_zip = []
+            for zf in zipy:
+                cel = os.path.join(org, zf)
+                if os.path.exists(cel):
+                    istnieje.append(zf)
+                    continue
+                shutil.move(os.path.join(d, zf), cel)
+                przen_zip.append(zf)
+            print("ORG: przeniesiono %d plikow do %s%s" % (len(przen) + len(przen_zip), org,
+                  " (w tym archiwa zip: %s)" % ", ".join(przen_zip) if przen_zip else ""))
             for n in istnieje:
                 print("UWAGA: ORG: nie przeniesiono (taki plik juz jest w org):", n)
     return 0 if not problemy else 2
