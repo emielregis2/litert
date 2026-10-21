@@ -9,7 +9,9 @@ na podstawie sekcji "Pliki podzielone" ze spisu.
 
 Gdy rozdzielanie jest KOMPLETNE (kazdy plik ze spisu ma swoj odpowiednik "pl", brak ostrzezen), przenosi do podkatalogu
 "org" wszystko poza wynikami: angielskie oryginaly, pliki scalenia (_all_N.txt) i ich tlumaczenia (_all_N pl.txt),
-czesci duzych plikow i ich tlumaczenia, spis oraz archiwa .zip z katalogu. Nic nie kasuje i nie nadpisuje.
+czesci duzych plikow i ich tlumaczenia, spis, raport naprawy oraz archiwa .zip z katalogu. Nic nie kasuje i nie nadpisuje.
+Pojedyncze znaki zastepcze U+FFFD w tlumaczeniu (uszkodzone przez DeepL) sa usuwane z wyniku automatycznie, z raportem
+(do --max-fffd na plik; wiecej = ostrzezenie bez usuwania). Przetlumaczone pliki zrodlowe nie sa zmieniane.
 
 Brakujace przetlumaczone pliki skrypt sam wypakowuje z archiwum .zip lezacego w katalogu (np. "DeepL Translations ... .zip"),
 tylko te brakujace, bez nadpisywania; wylaczenie: --bez-zip.
@@ -45,6 +47,27 @@ def czytaj(path):
             enc, txt = "cp1250", raw.decode("cp1250", errors="replace")
     KODOWANIE[path] = enc
     return txt.replace("\r\n", "\n")
+
+
+def napraw_fffd(tekst, etykieta, max_n, naprawy, nazwy=None, zrodlo=None):
+    """Usuwa pojedyncze znaki zastepcze U+FFFD (uszkodzone przez DeepL) z tlumaczenia i zapisuje w 'naprawy', gdzie to zrobiono.
+    Gdy w jednym pliku jest ich wiecej niz max_n (wyglada to na systemowe uszkodzenie kodowania, a nie pojedynczy artefakt),
+    niczego nie usuwa - sprawdz_pl zglosi wtedy ostrzezenie i przenoszenie do org zostanie wstrzymane. max_n = 0 wylacza usuwanie."""
+    n = tekst.count("\ufffd")
+    if n == 0 or n > max_n:
+        return tekst
+    wyn, cur, start = [], None, 0
+    for i, line in enumerate(tekst.split("\n"), 1):
+        m = MARK.match(line)
+        if m:
+            cur, start = int(m.group(1)), i
+        if "\ufffd" in line:
+            naprawy.append({"plik": etykieta, "linia": i, "nr": cur, "nazwa": (nazwy or {}).get(cur),
+                            "wynik_linia": (i - start - 1) if cur is not None else None,
+                            "ile": line.count("\ufffd"), "zrodlo": zrodlo})
+            line = line.replace("\ufffd", "")
+        wyn.append(line)
+    return "\n".join(wyn)
 
 
 def sprawdz_pl(nazwa, path, tekst, problemy):
@@ -138,6 +161,8 @@ def main():
     ap.add_argument("--nadpisz", action="store_true", help="nadpisz istniejace pliki wynikowe")
     ap.add_argument("--bez-org", action="store_true", help="nie przenos plikow zrodlowych do podkatalogu org")
     ap.add_argument("--bez-zip", action="store_true", help="nie uzupelniaj brakujacych tlumaczen z archiwow .zip w katalogu")
+    ap.add_argument("--max-fffd", type=int, default=10,
+                    help="ile znakow U+FFFD w jednym przetlumaczonym pliku usuwac automatycznie (0 = nie usuwaj; wiecej = ostrzezenie)")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
     spis_path = os.path.join(d, os.path.basename(d) + "_spis_scalenia.txt")
@@ -151,6 +176,8 @@ def main():
         oczek_pl = [pl[:-4] + " pl.txt" for pl in pliki] + [c[:-4] + " pl.txt" for _, cz in podzielone for c in cz]
         uzupelnij_z_zip(d, oczek_pl)
     problemy, zapisane = [], 0
+    naprawy = []                                                   # usuniete znaki U+FFFD (do raportu)
+    raport_nazwa = os.path.basename(d) + "_raport_naprawy.txt"
 
     for plik in pliki:
         pl_name = plik[:-4] + " pl.txt"
@@ -159,7 +186,7 @@ def main():
             problemy.append("BRAK przetlumaczonego pliku: " + pl_name)
             continue
         czesci, cur, przed = {}, None, []
-        tekst_pl = czytaj(pl_path)
+        tekst_pl = napraw_fffd(czytaj(pl_path), pl_name, a.max_fffd, naprawy, nazwy)
         sprawdz_pl(pl_name, pl_path, tekst_pl, problemy)
         for line in tekst_pl.split("\n"):
             m = MARK.match(line)
@@ -213,7 +240,7 @@ def main():
             continue
         kawalki = []
         for c in pl_czesci:
-            t = czytaj(os.path.join(d, c))
+            t = napraw_fffd(czytaj(os.path.join(d, c)), c, a.max_fffd, naprawy, None, orig)
             sprawdz_pl(c, os.path.join(d, c), t, problemy)
             kawalki.append(t)
         if all(cn in PRZERWY for cn in czesci_nazwy[1:]):
@@ -230,6 +257,21 @@ def main():
     print("Zapisano plikow:", zapisane, "(UTF-8 bez BOM, konce linii LF)")
     for p in problemy:
         print("UWAGA:", p)
+    if naprawy:   # raport z automatycznego usuwania znakow U+FFFD (tez zapisywany do pliku)
+        import datetime
+        lacznie = sum(x["ile"] for x in naprawy)
+        raport = ["NAPRAWA U+FFFD: usunieto %d znak(ow) w %d miejscu(ach) (limit na plik: %d)" % (lacznie, len(naprawy), a.max_fffd)]
+        for x in naprawy:
+            if x["nr"] is not None:
+                gdzie = "plik nr %d%s%s" % (x["nr"], " '%s'" % x["nazwa"] if x["nazwa"] else "",
+                        ", linia %d wyniku '%s'" % (x["wynik_linia"], x["nazwa"][:-4] + " pl.txt") if x["nazwa"] else "")
+            else:
+                gdzie = "czesc duzego pliku '%s'" % x["zrodlo"] if x["zrodlo"] else "poza znacznikami"
+            raport.append("   - '%s', linia %d (%s), znakow w linii: %d" % (x["plik"], x["linia"], gdzie, x["ile"]))
+        for l in raport:
+            print(l)
+        with open(os.path.join(d, raport_nazwa), "a", encoding="utf-8", newline="\n") as fh:
+            fh.write("%s\n%s\n\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "\n".join(raport)))
 
     # Porzadkowanie: gdy wszystko komplet, przenosimy materialy zrodlowe do ./org (nic nie kasujemy)
     if a.bez_org:
@@ -247,6 +289,7 @@ def main():
             for orig, czesci_n in podzielone:                                                # duze pliki: oryginal, czesci, tlumaczenia czesci
                 do_przen += [orig] + list(czesci_n) + [c[:-4] + " pl.txt" for c in czesci_n]
             do_przen.append(os.path.basename(spis_path))                                     # spis
+            do_przen.append(raport_nazwa)                                                    # raport naprawy U+FFFD (jesli powstal)
             wyniki_low = {w.lower() for w in wyniki}
             org = os.path.join(d, "org")
             os.makedirs(org, exist_ok=True)
