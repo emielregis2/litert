@@ -46,11 +46,11 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 - zgłasza brakujące, zdublowane i nadmiarowe znaczniki; nie zapisuje pliku, który mógłby się skleić z sąsiednim,
 - brakujące przetłumaczone pliki wypakowuje sam z archiwum `.zip` z DeepL leżącego w katalogu (tylko brakujące, bez nadpisywania; wyłączane flagą `--bez-zip`),
 - pojedyncze uszkodzone znaki U+FFFD zwrócone przez DeepL usuwa z wyniku automatycznie, z raportem (sekcja `NAPRAWA U+FFFD` i plik `..._raport_naprawy.txt`); do `--max-fffd` na plik (domyślnie 10), więcej to ostrzeżenie,
-- po udanym i kompletnym rozdzieleniu po kontroli kompletności (wyniki zapisane, niepuste, bez znaczników, nieucięte) przenosi oryginały do podkatalogu `org` i **kasuje pliki techniczne** (pliki scalenia i ich tłumaczenia, spis, części dużych plików i ich tłumaczenia, archiwum `.zip` zawierające wyłącznie tłumaczenia tej partii); wyłączane flagą `--bez-org`, a `--zachowaj-techniczne` przenosi je do `org` zamiast kasować,
+- po udanym i kompletnym rozdzieleniu po kontroli kompletności (wyniki zapisane, niepuste, bez znaczników, bez pętli DeepL, nieucięte) przenosi oryginały do podkatalogu `org` i **kasuje pliki techniczne** (pliki scalenia i ich tłumaczenia, spis, części dużych plików i ich tłumaczenia, archiwum `.zip` zawierające wyłącznie tłumaczenia tej partii); wyłączane flagą `--bez-org`, a `--zachowaj-techniczne` przenosi je do `org` zamiast kasować,
 - składa przetłumaczone części dużych plików (`Nazwa_1 pl.txt`, `Nazwa_2 pl.txt`, ...) w jeden `Nazwa pl.txt` według sekcji "Pliki podzielone" ze spisu; gdy brakuje którejś części, nie składa pliku i to zgłasza. Puste linie na granicach części są zapisywane w spisie (`przerwa N`) i przywracane przy składaniu, bo DeepL przycina puste linie na początku pliku.
 
 ```
-python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne] [--tylko-sprzatanie]
+python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 100]
 ```
 
 ## Kodowanie i polskie znaki

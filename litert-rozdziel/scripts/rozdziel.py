@@ -7,8 +7,8 @@ Granice wyznaczaja znaczniki  =====[[N|Nazwa]]=====  - liczy sie tylko numer N; 
 Dodatkowo sklada przetlumaczone czesci duzych plikow (Nazwa_1 pl.txt, Nazwa_2 pl.txt, ...) w jeden plik "Nazwa pl.txt"
 na podstawie sekcji "Pliki podzielone" ze spisu.
 
-Po KONTROLI kompletnosci (kazdy plik ze spisu ma zapisany, niepusty wynik "pl" bez znacznikow i bez podejrzanie malego
-rozmiaru, brak ostrzezen) przenosi angielskie oryginaly do podkatalogu "org", a pliki techniczne KASUJE: pliki scalenia
+Po KONTROLI kompletnosci (kazdy plik ze spisu ma zapisany, niepusty wynik "pl" bez znacznikow, bez petli tlumaczenia
+(dlugi ciag tego samego znaku, ktorego nie ma w oryginale) i bez podejrzanie malego rozmiaru, brak ostrzezen) przenosi angielskie oryginaly do podkatalogu "org", a pliki techniczne KASUJE: pliki scalenia
 (_all_N.txt) i ich tlumaczenia (_all_N pl.txt), czesci duzych plikow i ich tlumaczenia, spis oraz archiwa .zip (tylko gdy
 zawieraja wylacznie tlumaczenia z tej partii). Raport naprawy zostaje w org. Wynik: w katalogu glownym tylko tlumaczenia,
 w org tylko oryginaly. Flagi: --zachowaj-techniczne (pliki techniczne do org zamiast kasowania), --tylko-sprzatanie
@@ -20,7 +20,7 @@ Brakujace przetlumaczone pliki skrypt sam wypakowuje z archiwum .zip lezacego w 
 tylko te brakujace, bez nadpisywania; wylaczenie: --bez-zip.
 
 Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10]
-                                                         [--zachowaj-techniczne] [--tylko-sprzatanie]
+                                                         [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 100]
 """
 import os, re, sys, argparse, shutil
 
@@ -168,9 +168,43 @@ def oczekiwane_pliki(nazwy, pliki, podzielone):
     return oryginaly, wyniki, tech
 
 
-def zweryfikuj_wyniki(d, org, oryginaly, wyniki):
+def _sprawdz_petle(nazwa, tekst, op, min_ciag, problemy):
+    """Wykrywa 'petle' tlumaczenia: dlugi ciag tego samego znaku (>= min_ciag) w wyniku, ktorego nie ma w oryginale
+    (ciag musi byc ponad 2x dluzszy niz najdluzszy ciag tego znaku w oryginale). Taka petla (np. setki liter K) oznacza,
+    ze DeepL utknal, a tekst za nia mogl zostac zgubiony. Bez oryginalu flaguje dopiero ciagi >= 5 * min_ciag."""
+    import re as _re
+    petle = list(_re.finditer(r"([^\s])\1{%d,}" % (min_ciag - 1), tekst))
+    if not petle:
+        return
+    o = None
+    if op:
+        raw = open(op, "rb").read()
+        try:
+            o = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            o = raw.decode("cp1252", errors="replace")
+    najdl = {}
+    zgloszone = 0
+    for m in petle:
+        c, dl = m.group(1), len(m.group(0))
+        if c not in najdl:
+            najdl[c] = max((len(x.group(0)) for x in _re.finditer(_re.escape(c) + "+", o)), default=0) if o is not None else None
+        if najdl[c] is None:
+            podejrzana = dl >= 5 * min_ciag
+        else:
+            podejrzana = dl > 2 * najdl[c]
+        if podejrzana:
+            zgloszone += 1
+            if zgloszone <= 5:
+                linia = tekst.count("\n", 0, m.start()) + 1
+                problemy.append("KONTROLA: w wyniku %s, linia %d: ciag %d x '%s' (najdluzszy ciag tego znaku w oryginale: %s) - wyglada na petle "
+                                "tlumaczenia DeepL (tekst za nia mogl zostac zgubiony)" % (nazwa, linia, dl, c, "brak oryginalu" if najdl[c] is None else najdl[c]))
+
+
+def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=100):
     """Kontrola, czy kazdy wynik jest zapisany i kompletny: istnieje, nie jest pusty, jest poprawnym UTF-8,
-    nie ma znacznikow granic i nie jest podejrzanie maly wzgledem oryginalu (ucięte tlumaczenie)."""
+    nie ma znacznikow granic, nie ma 'petli' (dlugiego ciagu tego samego znaku, ktorego brak w oryginale) i nie jest
+    podejrzanie maly wzgledem oryginalu (ucięte tlumaczenie)."""
     problemy = []
     for o, w in zip(oryginaly, wyniki):
         wp = os.path.join(d, w)
@@ -196,6 +230,8 @@ def zweryfikuj_wyniki(d, org, oryginaly, wyniki):
             if so >= 2000 and len(raw) < 0.85 * so:
                 problemy.append("KONTROLA: wynik %s jest podejrzanie krotki (%.2f rozmiaru oryginalu) - tlumaczenie moglo zostac ucięte"
                                 % (w, len(raw) / so))
+        if min_ciag > 0:
+            _sprawdz_petle(w, t, op, min_ciag, problemy)
     return problemy
 
 
@@ -296,6 +332,8 @@ def main():
                     help="pliki techniczne (scalenia, spis, czesci, zip) przenies do org zamiast je kasowac")
     ap.add_argument("--tylko-sprzatanie", action="store_true",
                     help="tylko kontrola kompletnosci i sprzatanie (bez rozdzielania) - dla katalogu rozdzielonego wczesniej")
+    ap.add_argument("--min-ciag", type=int, default=100,
+                    help="od ilu powtorzen jednego znaku ciag w wyniku jest sprawdzany jako mozliwa petla DeepL (0 = wylacz kontrole)")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
     spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
@@ -311,7 +349,7 @@ def main():
     if a.tylko_sprzatanie:      # sama kontrola kompletnosci i sprzatanie, bez rozdzielania
         oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
         brak = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
-        weryf = [] if brak else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki)
+        weryf = [] if brak else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag)
         for w in brak:
             print("UWAGA: BRAK wyniku:", w)
         for w in weryf:
@@ -430,7 +468,7 @@ def main():
         krytyczne = [p for p in problemy if not p.startswith("POMINIETO")]
         oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
         brak_wynikow = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
-        weryf = [] if brak_wynikow else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki)
+        weryf = [] if brak_wynikow else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag)
         for w in weryf:
             print("UWAGA:", w)
         problemy.extend(weryf)
