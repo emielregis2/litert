@@ -42,6 +42,18 @@ Przetłumaczone pliki zawierają polskie znaki diakrytyczne (ą ć ę ł ń ó �
 
 Przy takim ostrzeżeniu NIE naprawiaj tekstu "na oko". Poproś Darka o ponowne zapisanie/pobranie tłumaczenia z DeepL jako UTF-8 i powtórz rozdzielanie z `--nadpisz`.
 
+## Gdy kontrola zgłasza pętle DeepL (długi ciąg tego samego znaku)
+
+Skrypt zatrzymuje wtedy przenoszenie i kasowanie (pliki techniczne i oryginały zostają na miejscu). Procedura zaakceptowana przez Darka:
+
+1. **Zbadaj każdą pętlę** (tylko liczby i bardzo krótki kontekst, kilkadziesiąt znaków w ascii): plik, linia, znak, długość, czy pętla stoi na końcu linii, ile znaków zostało po niej, jak długa jest linia wyniku bez pętli względem odpowiedniej linii oryginału. Pętla na końcu linii oznacza zwykle, że DeepL **zgubił resztę linii** (stosunek wyraźnie poniżej typowych 1,1–1,2). Pliki o podobnych tytułach bywają dwiema wersjami tego samego tekstu i wtedy pętle powtarzają się w obu.
+2. **Zapytaj Darka jednym pytaniem z opcjami:** (a) naprawa pełna, (b) naprawa minimalna, (c) zostawić (`--min-ciag 0`).
+   - **(a) pełna:** przygotuj plik pomocniczy `DO_PRZETLUMACZENIA_<Katalog>_linie.txt` w katalogu: oryginalne linie z miejsc pętli, w których ciągi 5 i więcej takich samych znaków są skrócone do 4 (to przeciągnięcia wywołują pętlę), oddzielone pustymi liniami. Darek tłumaczy plik w DeepL (wynik `... pl.txt`), a Ty podmieniasz w wynikach **całe linie** (spacje na początku i końcu linii bierz z oryginału).
+   - **(b) minimalna:** zamień pętlę na krótkie przeciągnięcie (5–6 liter) z domkniętym zdaniem lub cudzysłowem, tak jak w oryginale. Zgubionego tekstu nie odtwarzasz.
+3. **Przed zapisem sprawdź:** liczba niepustych linii tłumaczenia równa liczbie celów, brak U+FFFD i ciągów 20+ znaków w nowych liniach, stosunek długości tłumaczenia do skróconego oryginału w zakresie 0,8–1,6 (dla krótkich linii mniej niż 1,0 jest normalne, bo ". . ." staje się „…"), a w każdym pliku wyniku zmienia się dokładnie wskazana linia (liczba linii bez zmian). Zapis: UTF-8 bez BOM, końce linii LF. Przy niespełnieniu którejkolwiek kontroli nic nie zapisuj.
+4. **Po udanej podmianie** usuń pliki pomocnicze (`DO_PRZETLUMACZENIA_*`) i uruchom `rozdziel` ponownie: wyniki istnieją, więc zostaną pominięte, a kontrola i sprzątanie przejdą.
+5. **Zgubionych fragmentów nie tłumacz sam.** Brakujący tekst tłumaczy DeepL przez plik pomocniczy (opcja a).
+
 ## Gdy DeepL uszkodzi znacznik
 
 Wyrażenie rozpoznające tolerancyjnie traktuje różne znaki `=`, spacje i kreski wokół `[[N|...]]`. Jeśli numeru nie da się odczytać, skrypt zgłasza brak znacznika dla konkretnego numeru i nazwy. Nie próbuj wtedy dzielić po tytułach, bo po tłumaczeniu są po polsku.

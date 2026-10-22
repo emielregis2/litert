@@ -53,6 +53,10 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 60]
 ```
 
+## Gdy DeepL wpadnie w pętlę
+
+Przy przeciągniętych okrzykach w oryginale ("Daddddyyyy!!!") DeepL czasem generuje setki powtórzonych liter i gubi resztę linii. Kontrola w `litert-rozdziel` to wykrywa (próg `--min-ciag`) i wstrzymuje kasowanie. Procedura naprawy (plik pomocniczy z linii oryginału ze skróconymi przeciągnięciami, tłumaczony w DeepL, a potem podmiana całych linii) jest opisana w `litert-rozdziel/SKILL.md`.
+
 ## Kodowanie i polskie znaki
 
 Oba skrypty czytają pliki z automatycznym wykrywaniem kodowania (UTF-16 z BOM, UTF-8 z BOM lub bez; dla angielskich plików źródłowych dalej cp1252, a awaryjnie cp1250), a zapisują zawsze UTF-8 bez BOM z końcami linii LF. Dzięki temu polskie znaki, typograficzne apostrofy i cudzysłowy nie giną po drodze. Skrypty ostrzegają (`UWAGA`), gdy plik nie jest UTF-8, ma uszkodzone znaki (np. `Å‚`, `Ä…`, U+FFFD) albo przetłumaczony plik nie zawiera żadnej polskiej litery.
