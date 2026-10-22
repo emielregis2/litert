@@ -20,7 +20,7 @@ Brakujace przetlumaczone pliki skrypt sam wypakowuje z archiwum .zip lezacego w 
 tylko te brakujace, bez nadpisywania; wylaczenie: --bez-zip.
 
 Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10]
-                                                         [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 100]
+                                                         [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 60]
 """
 import os, re, sys, argparse, shutil
 
@@ -201,7 +201,7 @@ def _sprawdz_petle(nazwa, tekst, op, min_ciag, problemy):
                                 "tlumaczenia DeepL (tekst za nia mogl zostac zgubiony)" % (nazwa, linia, dl, c, "brak oryginalu" if najdl[c] is None else najdl[c]))
 
 
-def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=100):
+def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60):
     """Kontrola, czy kazdy wynik jest zapisany i kompletny: istnieje, nie jest pusty, jest poprawnym UTF-8,
     nie ma znacznikow granic, nie ma 'petli' (dlugiego ciagu tego samego znaku, ktorego brak w oryginale) i nie jest
     podejrzanie maly wzgledem oryginalu (ucięte tlumaczenie)."""
@@ -332,7 +332,7 @@ def main():
                     help="pliki techniczne (scalenia, spis, czesci, zip) przenies do org zamiast je kasowac")
     ap.add_argument("--tylko-sprzatanie", action="store_true",
                     help="tylko kontrola kompletnosci i sprzatanie (bez rozdzielania) - dla katalogu rozdzielonego wczesniej")
-    ap.add_argument("--min-ciag", type=int, default=100,
+    ap.add_argument("--min-ciag", type=int, default=60,
                     help="od ilu powtorzen jednego znaku ciag w wyniku jest sprawdzany jako mozliwa petla DeepL (0 = wylacz kontrole)")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)

@@ -50,7 +50,7 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 - składa przetłumaczone części dużych plików (`Nazwa_1 pl.txt`, `Nazwa_2 pl.txt`, ...) w jeden `Nazwa pl.txt` według sekcji "Pliki podzielone" ze spisu; gdy brakuje którejś części, nie składa pliku i to zgłasza. Puste linie na granicach części są zapisywane w spisie (`przerwa N`) i przywracane przy składaniu, bo DeepL przycina puste linie na początku pliku.
 
 ```
-python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 100]
+python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 60]
 ```
 
 ## Kodowanie i polskie znaki
