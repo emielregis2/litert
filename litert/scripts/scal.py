@@ -197,12 +197,22 @@ def pakuj(items, limit):
     return best
 
 
+def skroc_przeciagniecia(txt, min_dl=5, do=4):
+    """Skraca przeciagniete litery oraz znaki ! ? . (ciagi >= min_dl tego samego znaku) do 'do' znakow. Dziala tylko na
+    tekscie wysylanym do tlumaczenia: przeciagniete okrzyki ('Daddddyyyy!!!!!!!') wprawiaja DeepL w petle i powoduja zgubione
+    konce zdan. Zwraca (tekst, liczba skroconych ciagow)."""
+    import re as _re
+    return _re.subn(r"([^\W\d_]|[!?.])\1{%d,}" % (min_dl - 1), lambda m: m.group(1) * do, txt)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
     ap.add_argument("--limit", type=int, default=900000, help="maks. rozmiar pliku scalenia w bajtach")
     ap.add_argument("--nie-zastepuj-kopii", action="store_true", help="analizuj kopie _copy, ale niczego nie zastepuj")
     ap.add_argument("--tylko-analiza-kopii", action="store_true", help="tylko raport o kopiach _copy (bez zmian i bez scalania)")
+    ap.add_argument("--skracaj-przeciagniecia", action="store_true",
+                    help="w tekscie wysylanym do DeepL skracaj ciagi 5+ tego samego znaku (litery, ! ? .) do 4 - zapobiega petlom DeepL; oryginaly nietkniete")
     a = ap.parse_args()
 
     d = os.path.normpath(a.katalog)
@@ -244,7 +254,7 @@ def main():
         return m and (m.group(1) + ".txt").lower() in all_txt and (m.group(1) + ".txt").lower() != f.lower()
     stare_czesci = [f for f in cands if czesc_z(f)]
     names = [f for f in cands if f not in stare_czesci]
-    items, duze, ostrz_kod, kodowania = [], [], [], {}
+    items, duze, ostrz_kod, kodowania, skrocone = [], [], [], {}, {}
     for n in names:
         txt, enc = czytaj_plik(os.path.join(d, n))
         kodowania[enc] = kodowania.get(enc, 0) + 1
@@ -253,6 +263,10 @@ def main():
         if "\ufffd" in txt:
             ostrz_kod.append("%s: zawiera znak zastepczy U+FFFD (znaki uszkodzone juz w zrodle)" % n)
         txt = txt.replace("\r\n", "\n").strip("\n") + "\n"
+        if a.skracaj_przeciagniecia:                  # tylko tekst do tlumaczenia; znaczniki granic dodawane sa PO tym kroku
+            txt, ile = skroc_przeciagniecia(txt)
+            if ile:
+                skrocone[n] = ile
         sz = len(txt.encode("utf-8"))
         if sz > a.limit:
             duze.append((n, txt, sz))        # duzy plik: dzielimy, nie scalamy
@@ -334,6 +348,11 @@ def main():
     print("Pominiete (pl/_copy) nie sa wypisywane; scalono plikow:", len(items))
     print("Kodowanie wejscia: " + ", ".join("%s: %d" % (k, v) for k, v in sorted(kodowania.items())))
     print("Kodowanie wyniku: UTF-8 bez BOM, konce linii LF")
+    if a.skracaj_przeciagniecia:
+        print("Skracanie przeciagniec (--skracaj-przeciagniecia): %d ciagow w %d plikach (ciagi 5+ tego samego znaku -> 4); oryginaly nietkniete"
+              % (sum(skrocone.values()), len(skrocone)))
+        for n, k in sorted(skrocone.items(), key=lambda x: -x[1])[:10]:
+            print("   - %s: %d" % (n, k))
     for w in ostrz_kod:
         print("UWAGA (kodowanie):", w)
 

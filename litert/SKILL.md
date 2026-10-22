@@ -27,6 +27,7 @@ Skill powtarza dokładnie procedurę ustaloną z Darkiem na katalogach `WALTER18
     - kopia o **tej samej treści** jest niepotrzebna: bez zmian, nie jest scalana (do zgłoszenia),
     - **każdy inny przypadek** (kopia mniejsza, większa ale starsza, ten sam rozmiar a inna treść, kopia bez oryginału, oryginał już w `org`) to **raport DO DECYZJI Darka: nic nie zmieniamy i niczego nie rozstrzygamy za niego**. Dopóki Darek nie zdecyduje, scalany jest oryginał.
     Skrypt wypisuje sekcję `=== ANALIZA KOPII _copy ===` z rozmiarami i datami obu plików. Flagi: `--tylko-analiza-kopii` (sam raport, bez zmian i bez scalania, np. do sprawdzenia katalogu po rozdzieleniu), `--nie-zastepuj-kopii` (raport i scalanie, ale bez zastępowania). Decyzje Darka wykonujesz na jego polecenie (użyj kopii, zostaw oryginał, usuń kopię) i powtarzasz scalanie.
+11. **Opcja `--skracaj-przeciagniecia` (domyślnie wyłączona):** zapobiega pętlom DeepL. Po włączeniu skrypt skraca w tekście wysyłanym do tłumaczenia (pliki scalenia i części dużych plików) ciągi 5 i więcej takich samych liter oraz znaków `!` `?` `.` do 4 znaków (np. „Daddddddyyyyyy!!!!!!!!!" na „Daddddyyyy!!!!"), bo to przeciągnięte okrzyki wprawiają DeepL w pętlę i powodują zgubione końcówki zdań. **Oryginały pozostają nietknięte**, a w tłumaczeniach przeciągnięcia będą po prostu krótsze. Znaczniki granic `=====[[N|...]]=====` nie są skracane. Skrypt wypisuje liczbę skróconych ciągów i pliki z największą liczbą zmian. Włączaj na polecenie Darka albo proponuj, gdy poprzednia partia miała pętle.
 
 ## Procedura
 

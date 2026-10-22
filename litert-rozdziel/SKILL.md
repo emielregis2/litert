@@ -53,6 +53,7 @@ Skrypt zatrzymuje wtedy przenoszenie i kasowanie (pliki techniczne i oryginały 
 3. **Przed zapisem sprawdź:** liczba niepustych linii tłumaczenia równa liczbie celów, brak U+FFFD i ciągów 20+ znaków w nowych liniach, stosunek długości tłumaczenia do skróconego oryginału w zakresie 0,8–1,6 (dla krótkich linii mniej niż 1,0 jest normalne, bo ". . ." staje się „…"), a w każdym pliku wyniku zmienia się dokładnie wskazana linia (liczba linii bez zmian). Zapis: UTF-8 bez BOM, końce linii LF. Przy niespełnieniu którejkolwiek kontroli nic nie zapisuj.
 4. **Po udanej podmianie** usuń pliki pomocnicze (`DO_PRZETLUMACZENIA_*`) i uruchom `rozdziel` ponownie: wyniki istnieją, więc zostaną pominięte, a kontrola i sprzątanie przejdą.
 5. **Zgubionych fragmentów nie tłumacz sam.** Brakujący tekst tłumaczy DeepL przez plik pomocniczy (opcja a).
+6. **Zapobieganie na przyszłość:** przy kolejnych scaleniach proponuj skill `litert` z opcją `--skracaj-przeciagniecia` (skraca przeciągnięte litery w tekście wysyłanym do DeepL, oryginały zostają bez zmian).
 
 ## Gdy DeepL uszkodzi znacznik
 

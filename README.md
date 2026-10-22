@@ -33,7 +33,7 @@ Scala pliki `.txt` z katalogu w jak najmniej plików zbiorczych o rozmiarze do 9
 - niczego nie kasuje: oryginały i przetłumaczone pliki zostają nietknięte (jedyny wyjątek: nowsza i większa kopia `_copy` zastępuje oryginał, a oryginał trafia do `_zastapione`).
 
 ```
-python litert/scripts/scal.py "C:\sciezka\KATALOG" [--limit 900000] [--nie-zastepuj-kopii] [--tylko-analiza-kopii]
+python litert/scripts/scal.py "C:\sciezka\KATALOG" [--limit 900000] [--nie-zastepuj-kopii] [--tylko-analiza-kopii] [--skracaj-przeciagniecia]
 ```
 
 ## litert-rozdziel
@@ -55,7 +55,7 @@ python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--b
 
 ## Gdy DeepL wpadnie w pętlę
 
-Przy przeciągniętych okrzykach w oryginale ("Daddddyyyy!!!") DeepL czasem generuje setki powtórzonych liter i gubi resztę linii. Kontrola w `litert-rozdziel` to wykrywa (próg `--min-ciag`) i wstrzymuje kasowanie. Procedura naprawy (plik pomocniczy z linii oryginału ze skróconymi przeciągnięciami, tłumaczony w DeepL, a potem podmiana całych linii) jest opisana w `litert-rozdziel/SKILL.md`.
+Przy przeciągniętych okrzykach w oryginale ("Daddddyyyy!!!") DeepL czasem generuje setki powtórzonych liter i gubi resztę linii. Kontrola w `litert-rozdziel` to wykrywa (próg `--min-ciag`) i wstrzymuje kasowanie. Procedura naprawy (plik pomocniczy z linii oryginału ze skróconymi przeciągnięciami, tłumaczony w DeepL, a potem podmiana całych linii) jest opisana w `litert-rozdziel/SKILL.md`. Pętlom można zapobiegać, scalając z opcją `--skracaj-przeciagniecia` (skraca przeciągnięte litery w tekście wysyłanym do DeepL, oryginały zostają bez zmian).
 
 ## Kodowanie i polskie znaki
 
