@@ -7,16 +7,20 @@ Granice wyznaczaja znaczniki  =====[[N|Nazwa]]=====  - liczy sie tylko numer N; 
 Dodatkowo sklada przetlumaczone czesci duzych plikow (Nazwa_1 pl.txt, Nazwa_2 pl.txt, ...) w jeden plik "Nazwa pl.txt"
 na podstawie sekcji "Pliki podzielone" ze spisu.
 
-Gdy rozdzielanie jest KOMPLETNE (kazdy plik ze spisu ma swoj odpowiednik "pl", brak ostrzezen), przenosi do podkatalogu
-"org" wszystko poza wynikami: angielskie oryginaly, pliki scalenia (_all_N.txt) i ich tlumaczenia (_all_N pl.txt),
-czesci duzych plikow i ich tlumaczenia, spis, raport naprawy oraz archiwa .zip z katalogu. Nic nie kasuje i nie nadpisuje.
+Po KONTROLI kompletnosci (kazdy plik ze spisu ma zapisany, niepusty wynik "pl" bez znacznikow i bez podejrzanie malego
+rozmiaru, brak ostrzezen) przenosi angielskie oryginaly do podkatalogu "org", a pliki techniczne KASUJE: pliki scalenia
+(_all_N.txt) i ich tlumaczenia (_all_N pl.txt), czesci duzych plikow i ich tlumaczenia, spis oraz archiwa .zip (tylko gdy
+zawieraja wylacznie tlumaczenia z tej partii). Raport naprawy zostaje w org. Wynik: w katalogu glownym tylko tlumaczenia,
+w org tylko oryginaly. Flagi: --zachowaj-techniczne (pliki techniczne do org zamiast kasowania), --tylko-sprzatanie
+(sama kontrola i sprzatanie dla katalogu rozdzielonego wczesniej, bez rozdzielania).
 Pojedyncze znaki zastepcze U+FFFD w tlumaczeniu (uszkodzone przez DeepL) sa usuwane z wyniku automatycznie, z raportem
 (do --max-fffd na plik; wiecej = ostrzezenie bez usuwania). Przetlumaczone pliki zrodlowe nie sa zmieniane.
 
 Brakujace przetlumaczone pliki skrypt sam wypakowuje z archiwum .zip lezacego w katalogu (np. "DeepL Translations ... .zip"),
 tylko te brakujace, bez nadpisywania; wylaczenie: --bez-zip.
 
-Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org] [--bez-zip]
+Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10]
+                                                         [--zachowaj-techniczne] [--tylko-sprzatanie]
 """
 import os, re, sys, argparse, shutil
 
@@ -155,6 +159,131 @@ def uzupelnij_z_zip(d, oczekiwane):
     return wypakowane
 
 
+def oczekiwane_pliki(nazwy, pliki, podzielone):
+    """Zwraca (oryginaly, wyniki, pliki techniczne) na podstawie spisu."""
+    oryginaly = [nazwy[nr] for nr in sorted(nazwy)] + [o for o, _ in podzielone]
+    wyniki = [o[:-4] + " pl.txt" for o in oryginaly]
+    czesci = [c for _, cz in podzielone for c in cz]
+    tech = list(pliki) + [pl[:-4] + " pl.txt" for pl in pliki] + czesci + [c[:-4] + " pl.txt" for c in czesci]
+    return oryginaly, wyniki, tech
+
+
+def zweryfikuj_wyniki(d, org, oryginaly, wyniki):
+    """Kontrola, czy kazdy wynik jest zapisany i kompletny: istnieje, nie jest pusty, jest poprawnym UTF-8,
+    nie ma znacznikow granic i nie jest podejrzanie maly wzgledem oryginalu (ucięte tlumaczenie)."""
+    problemy = []
+    for o, w in zip(oryginaly, wyniki):
+        wp = os.path.join(d, w)
+        if not os.path.isfile(wp):
+            problemy.append("KONTROLA: brak wyniku " + w)
+            continue
+        raw = open(wp, "rb").read()
+        if not raw:
+            problemy.append("KONTROLA: pusty wynik " + w)
+            continue
+        try:
+            t = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            problemy.append("KONTROLA: wynik %s nie jest poprawnym UTF-8" % w)
+            continue
+        if "=====[[" in t:
+            problemy.append("KONTROLA: w wyniku %s pozostal znacznik granicy" % w)
+        if not t.endswith("\n"):
+            problemy.append("KONTROLA: wynik %s nie konczy sie znakiem nowej linii" % w)
+        op = next((x for x in (os.path.join(d, o), os.path.join(org, o)) if os.path.isfile(x)), None)
+        if op:
+            so = os.path.getsize(op)
+            if so >= 2000 and len(raw) < 0.85 * so:
+                problemy.append("KONTROLA: wynik %s jest podejrzanie krotki (%.2f rozmiaru oryginalu) - tlumaczenie moglo zostac ucięte"
+                                % (w, len(raw) / so))
+    return problemy
+
+
+def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zachowaj):
+    """Po pozytywnej kontroli: oryginaly -> org (z weryfikacja rozmiaru), pliki techniczne (scalenia i ich tlumaczenia,
+    czesci i ich tlumaczenia, spis, archiwa .zip zawierajace wylacznie tlumaczenia z tej partii) -> KASOWANE
+    (zachowaj=True: przenoszone do org). Niczego spoza tej listy nie rusza."""
+    import zipfile
+    org = os.path.join(d, "org")
+    os.makedirs(org, exist_ok=True)
+    chronione = {x.lower() for x in list(oryginaly) + list(wyniki)}
+    przen, ostrz = [], []
+    for o in dict.fromkeys(oryginaly):
+        zrodlo, cel = os.path.join(d, o), os.path.join(org, o)
+        if os.path.exists(zrodlo):
+            if os.path.exists(cel):
+                ostrz.append("oryginal %s jest juz w org - nie przeniesiono (zostaje tez w katalogu glownym)" % o)
+            else:
+                rozm = os.path.getsize(zrodlo)
+                shutil.move(zrodlo, cel)
+                if os.path.exists(cel) and os.path.getsize(cel) == rozm:
+                    przen.append(o)
+                else:
+                    ostrz.append("BLAD przenoszenia oryginalu " + o)
+    brak_org = [o for o in dict.fromkeys(oryginaly) if not os.path.exists(os.path.join(org, o))]
+    rp, rc = os.path.join(d, raport_nazwa), os.path.join(org, raport_nazwa)
+    if os.path.exists(rp) and not os.path.exists(rc):
+        shutil.move(rp, rc)
+        przen.append(raport_nazwa)
+    print("ORG: przeniesiono %d plikow do %s (oryginaly%s)" % (len(przen), org, " i raport naprawy" if raport_nazwa in przen else ""))
+    for w in ostrz:
+        print("UWAGA: ORG:", w)
+    if brak_org:
+        print("UWAGA: SPRZATANIE: w org brakuje %d oryginalow (np. %s) - pliki techniczne zostaja, niczego nie kasuje" % (len(brak_org), brak_org[0]))
+        return
+    oczek_pl = {t.lower() for t in tech if t.endswith(" pl.txt")}
+    usuniete, przeniesione_tech = [], []
+    for n in dict.fromkeys(list(tech) + [spis_nazwa]):
+        if n.lower() in chronione:
+            continue
+        for baza in (d, org):
+            pth = os.path.join(baza, n)
+            if not os.path.isfile(pth):
+                continue
+            rozm = os.path.getsize(pth)
+            if zachowaj:
+                if baza == d and not os.path.exists(os.path.join(org, n)):
+                    shutil.move(pth, os.path.join(org, n))
+                    przeniesione_tech.append(n)
+            else:
+                os.remove(pth)
+                if os.path.exists(pth):
+                    print("UWAGA: SPRZATANIE: nie udalo sie usunac", pth)
+                else:
+                    usuniete.append((n, rozm))
+    for baza in (d, org):
+        for z in sorted(f for f in os.listdir(baza) if f.lower().endswith(".zip") and os.path.isfile(os.path.join(baza, f))):
+            zp = os.path.join(baza, z)
+            try:
+                with zipfile.ZipFile(zp) as zf:
+                    wpisy = [os.path.basename(i.filename.replace("\\", "/")).lower() for i in zf.infolist() if not i.is_dir()]
+            except zipfile.BadZipFile:
+                print("UWAGA: SPRZATANIE: archiwum %s jest uszkodzone - zostawiam" % z)
+                continue
+            if wpisy and all(w in oczek_pl for w in wpisy):
+                rozm = os.path.getsize(zp)
+                if zachowaj:
+                    if baza == d and not os.path.exists(os.path.join(org, z)):
+                        shutil.move(zp, os.path.join(org, z))
+                        przeniesione_tech.append(z)
+                else:
+                    os.remove(zp)
+                    if os.path.exists(zp):
+                        print("UWAGA: SPRZATANIE: nie udalo sie usunac", zp)
+                    else:
+                        usuniete.append((z, rozm))
+            else:
+                print("UWAGA: SPRZATANIE: archiwum %s zawiera pliki spoza tej partii - zostawiam" % z)
+    if zachowaj:
+        print("SPRZATANIE: pliki techniczne przeniesione do org (--zachowaj-techniczne): %d" % len(przeniesione_tech))
+    else:
+        print("SPRZATANIE: skasowano %d plikow technicznych (%d B lacznie)" % (len(usuniete), sum(r for _, r in usuniete)))
+        for n, r in usuniete:
+            print("   - %s (%d B)" % (n, r))
+    gl = [f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))]
+    print("STAN KONCOWY: katalog glowny: %d plikow (w tym %d tlumaczen), org: %d plikow" % (len(gl), sum(1 for f in gl if f.lower() in {w.lower() for w in wyniki}), len(os.listdir(org))))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
@@ -163,15 +292,36 @@ def main():
     ap.add_argument("--bez-zip", action="store_true", help="nie uzupelniaj brakujacych tlumaczen z archiwow .zip w katalogu")
     ap.add_argument("--max-fffd", type=int, default=10,
                     help="ile znakow U+FFFD w jednym przetlumaczonym pliku usuwac automatycznie (0 = nie usuwaj; wiecej = ostrzezenie)")
+    ap.add_argument("--zachowaj-techniczne", action="store_true",
+                    help="pliki techniczne (scalenia, spis, czesci, zip) przenies do org zamiast je kasowac")
+    ap.add_argument("--tylko-sprzatanie", action="store_true",
+                    help="tylko kontrola kompletnosci i sprzatanie (bez rozdzielania) - dla katalogu rozdzielonego wczesniej")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
-    spis_path = os.path.join(d, os.path.basename(d) + "_spis_scalenia.txt")
+    spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
+    spis_path = os.path.join(d, spis_nazwa)
+    if a.tylko_sprzatanie and not os.path.exists(spis_path) and os.path.exists(os.path.join(d, "org", spis_nazwa)):
+        spis_path = os.path.join(d, "org", spis_nazwa)       # spis zostal w org po wczesniejszym rozdzieleniu
     if not os.path.exists(spis_path):
         print("BLAD: brak pliku spisu:", spis_path)
         if os.path.exists(os.path.join(d, "org", os.path.basename(spis_path))):
             print("      Spis jest w podkatalogu org - pliki zrodlowe zostaly juz przeniesione po poprzednim rozdzieleniu.")
         return 1
     pliki, nazwy, w_pliku, podzielone = parsuj_spis(spis_path)
+    if a.tylko_sprzatanie:      # sama kontrola kompletnosci i sprzatanie, bez rozdzielania
+        oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
+        brak = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
+        weryf = [] if brak else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki)
+        for w in brak:
+            print("UWAGA: BRAK wyniku:", w)
+        for w in weryf:
+            print("UWAGA:", w)
+        if brak or weryf or not wyniki:
+            print("SPRZATANIE: nic nie przenosze i niczego nie kasuje - kontrola nie przeszla (brakujace wyniki: %d, uwagi: %d)" % (len(brak), len(weryf)))
+            return 2
+        print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
+        wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, os.path.basename(d) + "_raport_naprawy.txt", a.zachowaj_techniczne)
+        return 0
     if not a.bez_zip:   # brakujace przetlumaczone pliki wypakuj z archiwum .zip z DeepL (jesli lezy w katalogu)
         oczek_pl = [pl[:-4] + " pl.txt" for pl in pliki] + [c[:-4] + " pl.txt" for _, cz in podzielone for c in cz]
         uzupelnij_z_zip(d, oczek_pl)
@@ -273,52 +423,23 @@ def main():
         with open(os.path.join(d, raport_nazwa), "a", encoding="utf-8", newline="\n") as fh:
             fh.write("%s\n%s\n\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "\n".join(raport)))
 
-    # Porzadkowanie: gdy wszystko komplet, przenosimy materialy zrodlowe do ./org (nic nie kasujemy)
+    # Kontrola kompletnosci; gdy wszystko OK: oryginaly do org, pliki techniczne kasowane (--zachowaj-techniczne: do org)
     if a.bez_org:
         print("ORG: pominieto (--bez-org)")
     else:
         krytyczne = [p for p in problemy if not p.startswith("POMINIETO")]
-        wyniki = [nazwy[nr][:-4] + " pl.txt" for nr in sorted(nazwy)] + [o[:-4] + " pl.txt" for o, _ in podzielone]
+        oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
         brak_wynikow = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
-        if krytyczne or brak_wynikow or not wyniki:
-            print("ORG: nie przenosze plikow - rozdzielanie niekompletne (ostrzezenia: %d, brakujace wyniki: %d)"
-                  % (len(krytyczne), len(brak_wynikow)))
+        weryf = [] if brak_wynikow else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki)
+        for w in weryf:
+            print("UWAGA:", w)
+        problemy.extend(weryf)
+        if krytyczne or brak_wynikow or weryf or not wyniki:
+            print("ORG: nie przenosze plikow i niczego nie kasuje - rozdzielanie niekompletne (ostrzezenia: %d, brakujace wyniki: %d, uwagi kontroli: %d)"
+                  % (len(krytyczne), len(brak_wynikow), len(weryf)))
         else:
-            do_przen = [nazwy[nr] for nr in sorted(nazwy)]                                   # angielskie oryginaly
-            do_przen += list(pliki) + [pl[:-4] + " pl.txt" for pl in pliki]                  # scalenia i ich tlumaczenia
-            for orig, czesci_n in podzielone:                                                # duze pliki: oryginal, czesci, tlumaczenia czesci
-                do_przen += [orig] + list(czesci_n) + [c[:-4] + " pl.txt" for c in czesci_n]
-            do_przen.append(os.path.basename(spis_path))                                     # spis
-            do_przen.append(raport_nazwa)                                                    # raport naprawy U+FFFD (jesli powstal)
-            wyniki_low = {w.lower() for w in wyniki}
-            org = os.path.join(d, "org")
-            os.makedirs(org, exist_ok=True)
-            przen, istnieje = [], []
-            for n in dict.fromkeys(do_przen):
-                if n.lower() in wyniki_low:
-                    continue                                                                  # wynikow nigdy nie przenosimy
-                zrodlo, cel = os.path.join(d, n), os.path.join(org, n)
-                if not os.path.exists(zrodlo):
-                    continue
-                if os.path.exists(cel):
-                    istnieje.append(n)
-                    continue
-                shutil.move(zrodlo, cel)
-                przen.append(n)
-            # Archiwa .zip z katalogu (np. pobrane z DeepL) tez trafiaja do org - po udanym i kompletnym rozdzieleniu
-            zipy = sorted(f for f in os.listdir(d) if f.lower().endswith(".zip") and os.path.isfile(os.path.join(d, f)))
-            przen_zip = []
-            for zf in zipy:
-                cel = os.path.join(org, zf)
-                if os.path.exists(cel):
-                    istnieje.append(zf)
-                    continue
-                shutil.move(os.path.join(d, zf), cel)
-                przen_zip.append(zf)
-            print("ORG: przeniesiono %d plikow do %s%s" % (len(przen) + len(przen_zip), org,
-                  " (w tym archiwa zip: %s)" % ", ".join(przen_zip) if przen_zip else ""))
-            for n in istnieje:
-                print("UWAGA: ORG: nie przeniesiono (taki plik juz jest w org):", n)
+            print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
+            wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, a.zachowaj_techniczne)
     return 0 if not problemy else 2
 
 

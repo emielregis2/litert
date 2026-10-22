@@ -40,7 +40,7 @@ Skill powtarza dokładnie procedurę ustaloną z Darkiem na katalogach `WALTER18
 
 ## Powtórne scalanie ("zmieniłem jeden z plików")
 
-Uwaga: po udanym rozdzieleniu tłumaczeń skill `litert-rozdziel` przenosi oryginały, pliki scalenia i spis do podkatalogu `org`. Jeśli Darek chce scalić ponownie, oryginały trzeba najpierw przenieść z `org` z powrotem do katalogu (albo wskazać mu to w podsumowaniu).
+Uwaga: po udanym rozdzieleniu tłumaczeń skill `litert-rozdziel` przenosi oryginały do podkatalogu `org`, a pliki techniczne (pliki scalenia i ich tłumaczenia, spis, części dużych plików, archiwum `.zip`) kasuje. Jeśli Darek chce scalić ponownie, oryginały trzeba najpierw przenieść z `org` z powrotem do katalogu (albo wskazać mu to w podsumowaniu).
 
 Uruchom skrypt jeszcze raz na tym samym katalogu. W podsumowaniu wskaż, który plik się zmienił, porównując rozmiary z poprzednim uruchomieniem. Jeśli w katalogu pojawił się nowy plik (np. `_copy(1)`), napisz o tym wprost.
 
