@@ -53,6 +53,10 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 60]
 ```
 
+## Duplikaty
+
+`litert/scripts/duplikaty.py KATALOG [--wzorzec @] [--prog 0.6] [--do-kosza]` wskazuje pliki z wzorcem w nazwie (domyślnie `@`), których treść w co najmniej 60% jest w innym pliku bez wzorca. Domyślnie tylko raport, a z `--do-kosza` takie pliki trafiają do Kosza (Windows). Po usunięciu duplikatów trzeba powtórzyć scalanie.
+
 ## Gdy DeepL wpadnie w pętlę
 
 Przy przeciągniętych okrzykach w oryginale ("Daddddyyyy!!!") DeepL czasem generuje setki powtórzonych liter i gubi resztę linii. Kontrola w `litert-rozdziel` to wykrywa (próg `--min-ciag`) i wstrzymuje kasowanie. Procedura naprawy (plik pomocniczy z linii oryginału ze skróconymi przeciągnięciami, tłumaczony w DeepL, a potem podmiana całych linii) jest opisana w `litert-rozdziel/SKILL.md`. Pętlom można zapobiegać, scalając z opcją `--skracaj-przeciagniecia` (skraca przeciągnięte litery w tekście wysyłanym do DeepL, oryginały zostają bez zmian).

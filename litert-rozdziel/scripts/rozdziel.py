@@ -295,6 +295,17 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
         print("UWAGA: SPRZATANIE: w org brakuje %d oryginalow (np. %s) - pliki techniczne zostaja, niczego nie kasuje" % (len(brak_org), brak_org[0]))
         return
     oczek_pl = {t.lower() for t in tech if t.endswith(" pl.txt")}
+    dup_do_usuniecia = []                 # kolejne pobrania tego samego tlumaczenia z DeepL: "X pl (1).txt", "X pl (2).txt"
+    for baza in (d, org):
+        for f in sorted(os.listdir(baza)):
+            m = re.match(r"^(.+ pl) \(\d+\)\.txt$", f)
+            if not m or (m.group(1) + ".txt").lower() not in oczek_pl:
+                continue
+            pk, pf = os.path.join(baza, m.group(1) + ".txt"), os.path.join(baza, f)
+            if os.path.isfile(pk) and open(pk, "rb").read() == open(pf, "rb").read():
+                dup_do_usuniecia.append(pf)
+            else:
+                print("UWAGA: SPRZATANIE: %s wyglada na kolejne pobranie z DeepL, ale rozni sie od %s.txt (lub go brak) - zostawiam" % (f, m.group(1)))
     usuniete, przeniesione_tech = [], []
     for n in dict.fromkeys(list(tech) + [spis_nazwa]):
         if n.lower() in chronione:
@@ -314,6 +325,18 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
                     print("UWAGA: SPRZATANIE: nie udalo sie usunac", pth)
                 else:
                     usuniete.append((n, rozm))
+    for pf in dup_do_usuniecia:
+        rozm = os.path.getsize(pf)
+        if zachowaj:
+            if os.path.dirname(pf) == d and not os.path.exists(os.path.join(org, os.path.basename(pf))):
+                _przenies(pf, os.path.join(org, os.path.basename(pf)))
+                przeniesione_tech.append(os.path.basename(pf))
+        else:
+            _usun(pf)
+            if os.path.exists(pf):
+                print("UWAGA: SPRZATANIE: nie udalo sie usunac", pf)
+            else:
+                usuniete.append((os.path.basename(pf), rozm))
     for baza in (d, org):
         for z in sorted(f for f in os.listdir(baza) if f.lower().endswith(".zip") and os.path.isfile(os.path.join(baza, f))):
             zp = os.path.join(baza, z)

@@ -86,7 +86,8 @@ def dziel(txt, limit):
 
 def analizuj_kopie(d, zastepuj=True):
     """Analiza kopii NazwaOryginalu_copy(N).txt wzgledem oryginalow PRZED scalaniem.
-    - kopia NOWSZA i WIEKSZA od oryginalu -> zastepuje oryginal (oryginal trafia do podkatalogu _zastapione),
+    - kopia NOWSZA (o co najmniej 60 s; pliki wgrane hurtem maja ten sam czas) i WIEKSZA od oryginalu -> zastepuje oryginal
+      (oryginal trafia do podkatalogu _zastapione),
     - kopia identyczna (ta sama tresc) -> bez zmian (kopia niepotrzebna, nie jest scalana),
     - kazda inna sytuacja (mniejsza, starsza-ale-wieksza, ten sam rozmiar a inna tresc, brak oryginalu)
       -> tylko raport DO DECYZJI uzytkownika, nic sie nie zmienia.
@@ -110,7 +111,7 @@ def analizuj_kopie(d, zastepuj=True):
         return t.replace("\r\n", "\n").strip("\n") + "\n"
 
     def czas(ts):
-        return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+        return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
     wyniki = []
     for kf, on, nr in sorted(kopie, key=lambda x: (x[1].lower(), x[2])):
@@ -125,10 +126,12 @@ def analizuj_kopie(d, zastepuj=True):
         tk, to = tekst(kp), tekst(op)
         sk, so = len(tk.encode("utf-8")), len(to.encode("utf-8"))
         mk, mo = os.path.getmtime(kp), os.path.getmtime(op)
-        opis = "kopia %d B (%s) | oryginal %d B (%s)%s" % (sk, czas(mk), so, czas(mo), "" if gdzie == "katalog" else " [oryginal w org]")
+        opis = "kopia %d B (%s) | oryginal %d B (%s)%s | slow %d/%d, puste linie %d/%d (kopia/oryginal)" % (
+            sk, czas(mk), so, czas(mo), "" if gdzie == "katalog" else " [oryginal w org]",
+            len(tk.split()), len(to.split()), sum(1 for x in tk.split("\n") if not x.strip()), sum(1 for x in to.split("\n") if not x.strip()))
         if tk == to:
             wyniki.append(("IDENTYCZNA", kf, opis + " | ta sama tresc"))
-        elif sk > so and mk > mo:
+        elif sk > so and mk - mo >= 60:
             if zastepuj and gdzie == "katalog":
                 kat = os.path.join(d, "_zastapione")
                 os.makedirs(kat, exist_ok=True)
@@ -142,6 +145,8 @@ def analizuj_kopie(d, zastepuj=True):
             else:
                 powod = "tryb tylko-analiza" if gdzie == "katalog" else "oryginal jest w org, nie zastepuje automatycznie"
                 wyniki.append(("DO_DECYZJI", kf, opis + " | kopia nowsza i wieksza (kandydat do zastapienia; " + powod + ")"))
+        elif sk > so and mk > mo:
+            wyniki.append(("DO_DECYZJI", kf, opis + " | kopia wieksza i nowsza tylko o %d s (pliki wgrane hurtem?) - za malo, by zastapic automatycznie" % int(mk - mo)))
         elif sk < so:
             wyniki.append(("DO_DECYZJI", kf, opis + " | kopia MNIEJSZA od oryginalu"))
         elif sk > so:
