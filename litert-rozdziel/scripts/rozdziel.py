@@ -159,6 +159,33 @@ def uzupelnij_z_zip(d, oczekiwane):
     return wypakowane
 
 
+def _usun(pth, proby=6, pauza=1.0):
+    """Kasuje plik z ponawianiem: Dropbox lub antywirus potrafia chwilowo zablokowac swiezo zapisany plik (PermissionError).
+    Zwraca True, gdy pliku juz nie ma."""
+    import time
+    for _ in range(proby):
+        try:
+            os.remove(pth)
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError:
+            time.sleep(pauza)
+    return not os.path.exists(pth)
+
+
+def _przenies(src, dst, proby=6, pauza=1.0):
+    """Przenosi plik z ponawianiem przy chwilowej blokadzie. Zwraca True, gdy plik jest w miejscu docelowym."""
+    import time
+    for _ in range(proby):
+        try:
+            shutil.move(src, dst)
+            return True
+        except OSError:
+            time.sleep(pauza)
+    return os.path.exists(dst) and not os.path.exists(src)
+
+
 def oczekiwane_pliki(nazwy, pliki, podzielone):
     """Zwraca (oryginaly, wyniki, pliki techniczne) na podstawie spisu."""
     oryginaly = [nazwy[nr] for nr in sorted(nazwy)] + [o for o, _ in podzielone]
@@ -251,7 +278,7 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
                 ostrz.append("oryginal %s jest juz w org - nie przeniesiono (zostaje tez w katalogu glownym)" % o)
             else:
                 rozm = os.path.getsize(zrodlo)
-                shutil.move(zrodlo, cel)
+                _przenies(zrodlo, cel)
                 if os.path.exists(cel) and os.path.getsize(cel) == rozm:
                     przen.append(o)
                 else:
@@ -259,7 +286,7 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
     brak_org = [o for o in dict.fromkeys(oryginaly) if not os.path.exists(os.path.join(org, o))]
     rp, rc = os.path.join(d, raport_nazwa), os.path.join(org, raport_nazwa)
     if os.path.exists(rp) and not os.path.exists(rc):
-        shutil.move(rp, rc)
+        _przenies(rp, rc)
         przen.append(raport_nazwa)
     print("ORG: przeniesiono %d plikow do %s (oryginaly%s)" % (len(przen), org, " i raport naprawy" if raport_nazwa in przen else ""))
     for w in ostrz:
@@ -279,10 +306,10 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
             rozm = os.path.getsize(pth)
             if zachowaj:
                 if baza == d and not os.path.exists(os.path.join(org, n)):
-                    shutil.move(pth, os.path.join(org, n))
+                    _przenies(pth, os.path.join(org, n))
                     przeniesione_tech.append(n)
             else:
-                os.remove(pth)
+                _usun(pth)
                 if os.path.exists(pth):
                     print("UWAGA: SPRZATANIE: nie udalo sie usunac", pth)
                 else:
@@ -300,10 +327,10 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
                 rozm = os.path.getsize(zp)
                 if zachowaj:
                     if baza == d and not os.path.exists(os.path.join(org, z)):
-                        shutil.move(zp, os.path.join(org, z))
+                        _przenies(zp, os.path.join(org, z))
                         przeniesione_tech.append(z)
                 else:
-                    os.remove(zp)
+                    _usun(zp)
                     if os.path.exists(zp):
                         print("UWAGA: SPRZATANIE: nie udalo sie usunac", zp)
                     else:
