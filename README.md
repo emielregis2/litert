@@ -53,6 +53,10 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 60]
 ```
 
+## Pominięte akapity
+
+DeepL czasem po cichu pomija akapit (w danych autora ok. 0,6% plików). `litert-rozdziel` porównuje liczbę linii z treścią w oryginale i wyniku, zgłasza numery pominiętych linii oryginału i wstrzymuje kasowanie plików technicznych (`--bez-kontroli-akapitow` wyłącza kontrolę). Procedura naprawy jest w `litert-rozdziel/SKILL.md`.
+
 ## Duplikaty
 
 `litert/scripts/duplikaty.py KATALOG [--wzorzec @] [--prog 0.6] [--do-kosza]` wskazuje pliki z wzorcem w nazwie (domyślnie `@`), których treść w co najmniej 60% jest w innym pliku bez wzorca. Domyślnie tylko raport, a z `--do-kosza` takie pliki trafiają do Kosza (Windows). Po usunięciu duplikatów trzeba powtórzyć scalanie.

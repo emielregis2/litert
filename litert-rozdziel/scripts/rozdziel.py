@@ -8,7 +8,8 @@ Dodatkowo sklada przetlumaczone czesci duzych plikow (Nazwa_1 pl.txt, Nazwa_2 pl
 na podstawie sekcji "Pliki podzielone" ze spisu.
 
 Po KONTROLI kompletnosci (kazdy plik ze spisu ma zapisany, niepusty wynik "pl" bez znacznikow, bez petli tlumaczenia
-(dlugi ciag tego samego znaku, ktorego nie ma w oryginale) i bez podejrzanie malego rozmiaru, brak ostrzezen) przenosi angielskie oryginaly do podkatalogu "org", a pliki techniczne KASUJE: pliki scalenia
+(dlugi ciag tego samego znaku, ktorego nie ma w oryginale), bez pominietych akapitow (mniej linii z trescia niz w oryginale)
+i bez podejrzanie malego rozmiaru, brak ostrzezen) przenosi angielskie oryginaly do podkatalogu "org", a pliki techniczne KASUJE: pliki scalenia
 (_all_N.txt) i ich tlumaczenia (_all_N pl.txt), czesci duzych plikow i ich tlumaczenia, spis oraz archiwa .zip (tylko gdy
 zawieraja wylacznie tlumaczenia z tej partii). Raport naprawy zostaje w org. Wynik: w katalogu glownym tylko tlumaczenia,
 w org tylko oryginaly. Flagi: --zachowaj-techniczne (pliki techniczne do org zamiast kasowania), --tylko-sprzatanie
@@ -21,6 +22,7 @@ tylko te brakujace, bez nadpisywania; wylaczenie: --bez-zip.
 
 Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10]
                                                          [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 60]
+                                                         [--bez-kontroli-akapitow]
 """
 import os, re, sys, argparse, shutil
 
@@ -228,7 +230,76 @@ def _sprawdz_petle(nazwa, tekst, op, min_ciag, problemy):
                                 "tlumaczenia DeepL (tekst za nia mogl zostac zgubiony)" % (nazwa, linia, dl, c, "brak oryginalu" if najdl[c] is None else najdl[c]))
 
 
-def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60):
+def _pominiete_akapity(dl_o, dl_w):
+    """Ktore linie z trescia oryginalu (indeksy w dl_o = dlugosci linii oryginalu) nie maja odpowiednika w wyniku (dl_w)?
+    Dopasowanie programowaniem dynamicznym w waskim pasie po dlugosciach linii (tlumaczenie jest ok. 1.13x dluzsze).
+    Zwraca posortowana liste indeksow pominietych linii oryginalu albo None, gdy sie nie da (np. wynik ma wiecej linii)."""
+    import math
+    n, m = len(dl_o), len(dl_w)
+    k = n - m
+    if k <= 0 or k > 60:
+        return None
+    szer = k + 6
+    INF = 1e18
+    dp = [[INF] * (szer + 1) for _ in range(n + 1)]
+    prev = [[None] * (szer + 1) for _ in range(n + 1)]
+    dp[0][0] = 0.0
+    for i in range(n):
+        for d in range(szer + 1):
+            c = dp[i][d]
+            if c >= INF:
+                continue
+            j = i - d
+            if 0 <= j < m:                                          # dopasuj linie oryginalu i z linia wyniku j
+                nc = c + abs(math.log((dl_w[j] + 5) / (1.13 * dl_o[i] + 5)))
+                if nc < dp[i + 1][d]:
+                    dp[i + 1][d] = nc
+                    prev[i + 1][d] = (d, "m")
+            if d + 1 <= szer:                                       # linia oryginalu pominieta w wyniku
+                nc = c + 1.6
+                if nc < dp[i + 1][d + 1]:
+                    dp[i + 1][d + 1] = nc
+                    prev[i + 1][d + 1] = (d, "s")
+    if dp[n][k] >= INF:
+        return None
+    wynik, d, i = [], k, n
+    while i > 0:
+        pd, op = prev[i][d]
+        if op == "s":
+            wynik.append(i - 1)
+        d, i = pd, i - 1
+    return sorted(wynik)
+
+
+def _sprawdz_akapity(nazwa, tekst, op, problemy, krotko=20):
+    """Kontrola liczby linii z trescia: DeepL potrafi po cichu pominac akapit. Wynik z mniejsza liczba linii z trescia niz oryginal
+    to problem (pominiecia linii do 'krotko' znakow sa tylko zgloszone jako INFO i nie blokuja)."""
+    raw = open(op, "rb").read()
+    try:
+        o = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        o = raw.decode("cp1252", errors="replace")
+    lo = [(i + 1, len(x.strip())) for i, x in enumerate(o.replace("\r\n", "\n").split("\n")) if x.strip()]
+    lw = [len(x.strip()) for x in tekst.split("\n") if x.strip()]
+    if len(lw) == len(lo):
+        return
+    if len(lw) > len(lo):
+        print("INFO: wynik %s ma wiecej linii z trescia niz oryginal (%d wobec %d) - mozliwy podzial linii" % (nazwa, len(lw), len(lo)))
+        return
+    idx = _pominiete_akapity([l for _, l in lo], lw)
+    if idx is None:
+        problemy.append("KONTROLA: wynik %s ma mniej linii z trescia niz oryginal (%d wobec %d) - DeepL mogl pominac akapity (nie udalo sie ustalic ktore)"
+                        % (nazwa, len(lw), len(lo)))
+        return
+    duze = ["%d (%d zn.)" % lo[i] for i in idx if lo[i][1] > krotko]
+    male = [str(lo[i][0]) for i in idx if lo[i][1] <= krotko]
+    if male:
+        print("INFO: w wyniku %s brakuje %d krotkich linii oryginalu (do %d znakow): linie %s" % (nazwa, len(male), krotko, ", ".join(male[:10])))
+    if duze:
+        problemy.append("KONTROLA: w wyniku %s brakuje %d akapitow oryginalu (DeepL je pominal): linie oryginalu %s" % (nazwa, len(duze), ", ".join(duze[:10])))
+
+
+def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60, kontrola_akapitow=True):
     """Kontrola, czy kazdy wynik jest zapisany i kompletny: istnieje, nie jest pusty, jest poprawnym UTF-8,
     nie ma znacznikow granic, nie ma 'petli' (dlugiego ciagu tego samego znaku, ktorego brak w oryginale) i nie jest
     podejrzanie maly wzgledem oryginalu (ucięte tlumaczenie)."""
@@ -259,6 +330,8 @@ def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60):
                                 % (w, len(raw) / so))
         if min_ciag > 0:
             _sprawdz_petle(w, t, op, min_ciag, problemy)
+        if kontrola_akapitow and op:
+            _sprawdz_akapity(w, t, op, problemy)
     return problemy
 
 
@@ -384,6 +457,8 @@ def main():
                     help="tylko kontrola kompletnosci i sprzatanie (bez rozdzielania) - dla katalogu rozdzielonego wczesniej")
     ap.add_argument("--min-ciag", type=int, default=60,
                     help="od ilu powtorzen jednego znaku ciag w wyniku jest sprawdzany jako mozliwa petla DeepL (0 = wylacz kontrole)")
+    ap.add_argument("--bez-kontroli-akapitow", action="store_true",
+                    help="wylacz kontrole liczby linii z trescia (wykrywanie akapitow pominietych przez DeepL)")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
     spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
@@ -399,7 +474,7 @@ def main():
     if a.tylko_sprzatanie:      # sama kontrola kompletnosci i sprzatanie, bez rozdzielania
         oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
         brak = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
-        weryf = [] if brak else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag)
+        weryf = [] if brak else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow)
         for w in brak:
             print("UWAGA: BRAK wyniku:", w)
         for w in weryf:
@@ -518,7 +593,7 @@ def main():
         krytyczne = [p for p in problemy if not p.startswith("POMINIETO")]
         oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
         brak_wynikow = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
-        weryf = [] if brak_wynikow else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag)
+        weryf = [] if brak_wynikow else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow)
         for w in weryf:
             print("UWAGA:", w)
         problemy.extend(weryf)
