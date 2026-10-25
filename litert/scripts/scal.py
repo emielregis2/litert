@@ -216,8 +216,10 @@ def main():
     ap.add_argument("--limit", type=int, default=900000, help="maks. rozmiar pliku scalenia w bajtach")
     ap.add_argument("--nie-zastepuj-kopii", action="store_true", help="analizuj kopie _copy, ale niczego nie zastepuj")
     ap.add_argument("--tylko-analiza-kopii", action="store_true", help="tylko raport o kopiach _copy (bez zmian i bez scalania)")
-    ap.add_argument("--skracaj-przeciagniecia", action="store_true",
-                    help="w tekscie wysylanym do DeepL skracaj ciagi 5+ tego samego znaku (litery, ! ? .) do 4 - zapobiega petlom DeepL; oryginaly nietkniete")
+    ap.add_argument("--bez-skracania", action="store_true",
+                    help="NIE skracaj przeciagniec w tekscie wysylanym do DeepL (domyslnie ciagi 5+ tego samego znaku - litery, ! ? . - sa "
+                         "skracane do 4, co zapobiega petlom DeepL; oryginaly sa zawsze nietkniete)")
+    ap.add_argument("--skracaj-przeciagniecia", action="store_true", help=argparse.SUPPRESS)   # stara flaga: skracanie jest teraz domyslne
     a = ap.parse_args()
 
     d = os.path.normpath(a.katalog)
@@ -268,7 +270,7 @@ def main():
         if "\ufffd" in txt:
             ostrz_kod.append("%s: zawiera znak zastepczy U+FFFD (znaki uszkodzone juz w zrodle)" % n)
         txt = txt.replace("\r\n", "\n").strip("\n") + "\n"
-        if a.skracaj_przeciagniecia:                  # tylko tekst do tlumaczenia; znaczniki granic dodawane sa PO tym kroku
+        if not a.bez_skracania:                       # tylko tekst do tlumaczenia; znaczniki granic dodawane sa PO tym kroku
             txt, ile = skroc_przeciagniecia(txt)
             if ile:
                 skrocone[n] = ile
@@ -353,8 +355,8 @@ def main():
     print("Pominiete (pl/_copy) nie sa wypisywane; scalono plikow:", len(items))
     print("Kodowanie wejscia: " + ", ".join("%s: %d" % (k, v) for k, v in sorted(kodowania.items())))
     print("Kodowanie wyniku: UTF-8 bez BOM, konce linii LF")
-    if a.skracaj_przeciagniecia:
-        print("Skracanie przeciagniec (--skracaj-przeciagniecia): %d ciagow w %d plikach (ciagi 5+ tego samego znaku -> 4); oryginaly nietkniete"
+    if not a.bez_skracania:
+        print("Skracanie przeciagniec (domyslne; --bez-skracania wylacza): %d ciagow w %d plikach (ciagi 5+ tego samego znaku -> 4); oryginaly nietkniete"
               % (sum(skrocone.values()), len(skrocone)))
         for n, k in sorted(skrocone.items(), key=lambda x: -x[1])[:10]:
             print("   - %s: %d" % (n, k))
