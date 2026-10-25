@@ -57,6 +57,10 @@ python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--b
 
 DeepL czasem po cichu pomija akapit (w danych autora ok. 0,6% plików). `litert-rozdziel` porównuje liczbę linii z treścią w oryginale i wyniku, zgłasza numery pominiętych linii oryginału i wstrzymuje kasowanie plików technicznych (`--bez-kontroli-akapitow` wyłącza kontrolę). Procedura naprawy jest w `litert-rozdziel/SKILL.md`.
 
+## Uszkodzone kodowanie cudzysłowów
+
+Niektóre stare pliki mają cudzysłowy i apostrofy zapisane osobnymi bajtami (`D4`, `D3`) z uszkodzonym następnym znakiem. `scal.py` to wykrywa i ostrzega, a `litert/scripts/napraw_kodowanie.py KATALOG [--zapisz]` naprawia (domyślnie tylko raport; stary oryginał trafia do `_zastapione`). Po naprawie trzeba powtórzyć scalanie.
+
 ## Duplikaty
 
 `litert/scripts/duplikaty.py KATALOG [--wzorzec @] [--prog 0.6] [--do-kosza]` wskazuje pliki z wzorcem w nazwie (domyślnie `@`), których treść w co najmniej 60% jest w innym pliku bez wzorca. Domyślnie tylko raport, a z `--do-kosza` takie pliki trafiają do Kosza (Windows). Po usunięciu duplikatów trzeba powtórzyć scalanie.

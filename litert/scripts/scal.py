@@ -269,6 +269,11 @@ def main():
             ostrz_kod.append("%s: odczytano jako %s (nietypowe kodowanie) - sprawdz znaki specjalne" % (n, enc))
         if "\ufffd" in txt:
             ostrz_kod.append("%s: zawiera znak zastepczy U+FFFD (znaki uszkodzone juz w zrodle)" % n)
+        if enc in ("cp1252", "cp1250", "utf-8"):      # mieszane kodowanie: bajty D3/D4 (cudzyslow, apostrof) + uszkodzony nastepny znak
+            import re as _re
+            uszk = len(_re.findall(rb"[\xd3\xd4][\x80-\xbf]", open(os.path.join(d, n), "rb").read()))
+            if uszk >= 5 and (enc != "utf-8" or (sum(1 for c in txt if "\u04c0" <= c <= "\u053f") >= 5 and sum(1 for c in txt if "\u0410" <= c <= "\u044f") <= uszk)):
+                ostrz_kod.append("%s: wykryto %d uszkodzonych sekwencji cudzyslowow/apostrofow (bajty D3/D4 + uszkodzony znak) - PRZED tlumaczeniem uruchom napraw_kodowanie.py" % (n, uszk))
         txt = txt.replace("\r\n", "\n").strip("\n") + "\n"
         if not a.bez_skracania:                       # tylko tekst do tlumaczenia; znaczniki granic dodawane sa PO tym kroku
             txt, ile = skroc_przeciagniecia(txt)
