@@ -188,6 +188,25 @@ def _przenies(src, dst, proby=6, pauza=1.0):
     return os.path.exists(dst) and not os.path.exists(src)
 
 
+def _do_kosza(path):
+    """Przenosi plik do Kosza (tylko Windows). Zwraca True, gdy pliku juz nie ma w miejscu."""
+    if os.name != "nt":
+        return False
+    import ctypes
+
+    class SHFILEOPSTRUCT(ctypes.Structure):
+        _fields_ = [("hwnd", ctypes.c_void_p), ("wFunc", ctypes.c_uint), ("pFrom", ctypes.c_wchar_p), ("pTo", ctypes.c_wchar_p),
+                    ("fFlags", ctypes.c_ushort), ("fAnyOperationsAborted", ctypes.c_int), ("hNameMappings", ctypes.c_void_p),
+                    ("lpszProgressTitle", ctypes.c_wchar_p)]
+    op = SHFILEOPSTRUCT()
+    op.wFunc = 3                                  # FO_DELETE
+    op.pFrom = path + "\0"
+    op.pTo = None
+    op.fFlags = 0x40 | 0x10 | 0x4 | 0x400         # ALLOWUNDO (Kosz), bez pytan i okien
+    wynik = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))
+    return wynik == 0 and not op.fAnyOperationsAborted and not os.path.exists(path)
+
+
 def oczekiwane_pliki(nazwy, pliki, podzielone):
     """Zwraca (oryginaly, wyniki, pliki techniczne) na podstawie spisu."""
     oryginaly = [nazwy[nr] for nr in sorted(nazwy)] + [o for o, _ in podzielone]
@@ -439,6 +458,17 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
         print("SPRZATANIE: skasowano %d plikow technicznych (%d B lacznie)" % (len(usuniete), sum(r for _, r in usuniete)))
         for n, r in usuniete:
             print("   - %s (%d B)" % (n, r))
+        # pliki pomocnicze dodatkowych tlumaczen (petle, pominiete akapity): zasada Darka - zawsze na koniec je sprzatamy (do Kosza)
+        pomocnicze = []
+        for f in sorted(os.listdir(d)):
+            pf = os.path.join(d, f)
+            if re.match(r"^DO_PRZETLUMACZENIA_.*\.txt$", f) and os.path.isfile(pf):
+                if _do_kosza(pf) or _usun(pf):
+                    pomocnicze.append(f)
+                else:
+                    print("UWAGA: SPRZATANIE: nie udalo sie usunac pliku pomocniczego", pf)
+        if pomocnicze:
+            print("SPRZATANIE: pliki pomocnicze DO_PRZETLUMACZENIA_* przeniesione do Kosza: %d (%s)" % (len(pomocnicze), ", ".join(pomocnicze)))
     gl = [f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))]
     print("STAN KONCOWY: katalog glowny: %d plikow (w tym %d tlumaczen), org: %d plikow" % (len(gl), sum(1 for f in gl if f.lower() in {w.lower() for w in wyniki}), len(os.listdir(org))))
 
