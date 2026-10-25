@@ -315,7 +315,7 @@ def _sprawdz_akapity(nazwa, tekst, op, problemy, krotko=20):
     if male:
         print("INFO: w wyniku %s brakuje %d krotkich linii oryginalu (do %d znakow): linie %s" % (nazwa, len(male), krotko, ", ".join(male[:10])))
     if duze:
-        problemy.append("KONTROLA: w wyniku %s brakuje %d akapitow oryginalu (DeepL je pominal): linie oryginalu %s" % (nazwa, len(duze), ", ".join(duze[:10])))
+        problemy.append("KONTROLA: w wyniku %s brakuje %d akapitow oryginalu (DeepL je pominal lub scalil z sasiednia linia - zweryfikuj tlumaczeniem pliku pomocniczego): linie oryginalu %s" % (nazwa, len(duze), ", ".join(duze[:10])))
 
 
 def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60, kontrola_akapitow=True):
