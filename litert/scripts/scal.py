@@ -539,7 +539,7 @@ def main():
     groups = pakuj(items, a.limit)
     for g in groups:
         g.sort(key=lambda x: (x[0].lower(), x[4]))          # wewnatrz pliku scalenia: kolejnosc alfabetyczna (czesci duzego pliku wg numeru)
-    groups.sort(key=lambda g: g[0][0].lower())      # numeracja plikow scalenia wg pierwszej nazwy alfabetycznie
+    groups.sort(key=lambda g: (g[0][0].lower(), g[0][4]))      # numeracja plikow scalenia wg pierwszej nazwy alfabetycznie (czesci tego samego pliku wg numeru czesci)
     for g in groups:
         tot = sum(x[2] for x in g) + 2 * (len(g) - 1)
         if tot > a.limit:
