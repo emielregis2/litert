@@ -38,6 +38,7 @@ except Exception:
 KODOWANIE = {}   # sciezka -> uzyte kodowanie
 PRZERWY = {}     # nazwa czesci -> liczba pustych linii miedzy ta czescia a poprzednia (ze spisu)
 PLAN_DZIEL = {}  # nazwa oryginalu -> [(indeks linii oryginalu, liczba kawalkow)] - dlugie linie podzielone przy scalaniu (ze spisu)
+PLAN_ODSTEPY = {}  # nazwa oryginalu -> {indeks linii: napis 's'/'q' dlugosci k-1} - sposob laczenia kawalkow (s = spacja, q = bez niczego)
 POLSKIE = re.compile("[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]")
 # typowe slady UTF-8 odczytanego jako cp1250/cp1252 oraz znak zastepczy
 ZEPSUTE = re.compile("Ä…|Ä™|Ä‡|Å‚|Å„|Å›|Åº|Å¼|Ăł|Ã³|\ufffd")
@@ -101,6 +102,9 @@ def parsuj_spis(path):
             m = re.match(r"^\s+(.+?\.txt): dzielone linie (.+?)\s*$", line)
             if m:
                 PLAN_DZIEL[m.group(1)] = [tuple(int(x) for x in p.split("x")) for p in m.group(2).split(", ")]
+            m = re.match(r"^\s+(.+?\.txt): odstepy linii (.+?)\s*$", line)
+            if m:
+                PLAN_ODSTEPY[m.group(1)] = {int(p.split("=")[0]): p.split("=")[1] for p in m.group(2).split(", ")}
             continue
         if line.startswith("Pliki podzielone"):
             sekcja_podz = True
@@ -126,14 +130,16 @@ def parsuj_spis(path):
     return pliki, nazwy, w_pliku, podzielone
 
 
-def _sklej_kawalki(czesci):
-    """Sklada kawalki jednej dlugiej linii pojedyncza spacja; zachowuje spacje na poczatku pierwszego i na koncu ostatniego kawalka
-    (wciecie akapitu, spacja na koncu linii), a w miejscach laczenia usuwa nadmiarowe."""
+def _sklej_kawalki(czesci, odstepy=None):
+    """Sklada kawalki jednej dlugiej linii wg odstepow ('s' = pojedyncza spacja, 'q' = bez niczego: ciecie bylo MIEDZY dwoma cudzyslowami;
+    domyslnie same spacje); zachowuje spacje na poczatku pierwszego i na koncu ostatniego kawalka (wciecie akapitu, spacja na koncu linii),
+    a w miejscach laczenia usuwa nadmiarowe."""
+    if not odstepy or len(odstepy) != len(czesci) - 1:
+        odstepy = "s" * (len(czesci) - 1)
     wynik = czesci[0].rstrip()
-    for x in czesci[1:-1]:
-        wynik += " " + x.strip()
-    if len(czesci) > 1:
-        wynik += " " + czesci[-1].lstrip()
+    for i in range(1, len(czesci)):
+        x = czesci[i].strip() if i < len(czesci) - 1 else czesci[i].lstrip()
+        wynik += (" " if odstepy[i - 1] == "s" else "") + x
     return wynik
 
 
@@ -167,7 +173,7 @@ def zloz_dzielone(tekst, orig, d, problemy, etykieta):
     nowe, i = [], 0
     for j in range(len(lo)):
         k = k_dla.get(j, 1)
-        nowe.append(wyn[i] if k == 1 else _sklej_kawalki(wyn[i:i + k]))
+        nowe.append(wyn[i] if k == 1 else _sklej_kawalki(wyn[i:i + k], PLAN_ODSTEPY.get(orig, {}).get(j)))
         i += k
     print("   zlozono dlugie linie: %s (%d linii z %d kawalkow)" % (etykieta, len(plan), sum(k for _, k in plan)))
     return "\n".join(nowe) + "\n"

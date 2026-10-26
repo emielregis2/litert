@@ -68,24 +68,43 @@ def dziel_dluga_linie(linia, prog=4000, cel=3000, min_kawalek=1200, min_tura=150
     return kawalki
 
 
-def dziel_na_turach(linia, prog=4000, min_odc=60):
-    """Dzieli linie dluzsza niz 'prog' w KAZDYM miejscu zmiany mowcy ('"" ' albo '" "'), ale tak, by zaden odcinek nie byl krotszy niz 'min_odc'
-    (krotsze zostaja przy sasiednim: DeepL najchetniej scala bardzo krotkie linie). Odcinki, ktore nadal sa dluzsze niz 'prog' (brak granic zmiany
-    mowcy), sa dzielone po zdaniach (dziel_dluga_linie). Polaczenie odcinkow pojedyncza spacja odtwarza linie co do znaku."""
-    if len(linia) <= prog:
-        return [linia]
-    kandydaci = [i for i in range(2, len(linia) - 1)
-                 if linia[i] == " " and linia[i - 1] == '"' and (linia[i - 2] == '"' or linia[i + 1] == '"')]
-    odcinki, start = [], 0
-    for i in kandydaci:
-        if i - start >= min_odc and len(linia) - i - 1 >= min_odc:
-            odcinki.append(linia[start:i])
-            start = i + 1
+def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
+    """Dzieli linie dluzsza niz 'prog' w KAZDEJ zmianie mowcy: MIEDZY dwoma sasiednimi cudzyslowami ('""' albo typograficzne '”“' - linia konczy sie
+    cudzyslowem, nastepna zaczyna sie cudzyslowem, nic nie jest usuwane) oraz w srodkowej spacji '" "' / '” “' (spacja jest usuwana). Zwraca
+    (kawalki, odstepy): odstepy to napis dlugosci len(kawalki)-1, 'q' = ciecie miedzy cudzyslowami (laczenie bez niczego), 's' = ciecie na spacji
+    (laczenie spacja); laczenie wg odstepow odtwarza linie co do znaku. Odcinek musi miec co najmniej 'min_odc' znakow i co najmniej 2 litery/cyfry
+    (nie robimy linii z samego cudzyslowu). Odcinki nadal dluzsze niz 'prog' (brak granic zmiany mowcy) sa dzielone po zdaniach (dziel_dluga_linie).
+    'prog_tur' (domyslnie = 'prog') to dlugosc linii, powyzej ktorej w ogole tniemy na zmianach mowcy (0 = tniemy kazda linie)."""
+    if len(linia) <= (prog if prog_tur is None else prog_tur):
+        return [linia], ""
+    n = len(linia)
+    kand = []                                        # (miejsce ciecia, poczatek nastepnego odcinka, rodzaj)
+    for p in range(1, n - 1):
+        c, d = linia[p], linia[p + 1]
+        if c == '"' and d == '"' and linia[p - 1] != '"' and (p + 2 >= n or linia[p + 2] != '"'):
+            kand.append((p + 1, p + 1, "q"))
+        elif c == "\u201d" and d == "\u201c":
+            kand.append((p + 1, p + 1, "q"))
+        elif c == " " and p + 1 < n and ((linia[p - 1] == '"' and d == '"') or (linia[p - 1] == "\u201d" and d == "\u201c")):
+            kand.append((p, p + 1, "s"))
+    pref = [0]                                       # sumy prefiksowe liczby liter/cyfr (liniowo zamiast liczenia dla kazdego kandydata)
+    for ch in linia:
+        pref.append(pref[-1] + (1 if ch.isalnum() else 0))
+    odcinki, odst, start = [], [], 0
+    for cut, nxt, r in kand:
+        if cut - start >= max(min_odc, 1) and n - nxt >= max(min_odc, 1) and pref[cut] - pref[start] >= 2 and pref[n] - pref[nxt] >= 2:
+            odcinki.append(linia[start:cut])
+            odst.append(r)
+            start = nxt
     odcinki.append(linia[start:])
-    wynik = []
-    for o in odcinki:
-        wynik.extend(dziel_dluga_linie(o, prog) if len(o) > prog else [o])
-    return wynik
+    wynik, sep = [], []
+    for i, o in enumerate(odcinki):
+        czesci = dziel_dluga_linie(o, prog) if len(o) > prog else [o]
+        wynik.extend(czesci)
+        sep.extend(["s"] * (len(czesci) - 1))
+        if i < len(odst):
+            sep.append(odst[i])
+    return wynik, "".join(sep)
 
 
 def skroc(l):
@@ -101,7 +120,7 @@ def czytaj_linie(p):
     return t.replace("\r\n", "\n").strip("\n").split("\n")
 
 
-def zbierz_plan(d, prog, nazwy, tury=False, min_odc=60):
+def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0):
     """Zwraca (lista plikow do naprawy: dict z kluczami baza, Lo, dlugie [(j, kawalki)], idx_wyniku {j: indeks linii wyniku}), lista pominietych)."""
     zrodlo = os.path.join(d, "org") if os.path.isdir(os.path.join(d, "org")) else d
     pliki, pominiete = [], []
@@ -115,7 +134,15 @@ def zbierz_plan(d, prog, nazwy, tury=False, min_odc=60):
         if not os.path.isfile(wp):
             continue
         Lo = czytaj_linie(os.path.join(zrodlo, f))
-        dlugie = [(j, dziel_na_turach(skroc(l), prog, min_odc) if tury else dziel_dluga_linie(skroc(l), prog)) for j, l in enumerate(Lo) if len(l) > prog]
+        dlugie = []
+        for j, l in enumerate(Lo):
+            if len(l) > prog:
+                if tury:
+                    kaw, sp = dziel_na_turach(skroc(l), prog, min_odc)
+                else:
+                    kaw = dziel_dluga_linie(skroc(l), prog)
+                    sp = "s" * (len(kaw) - 1)
+                dlugie.append((j, kaw, sp))
         if not dlugie:
             continue
         R = open(wp, "rb").read().decode("utf-8").split("\n")
@@ -125,7 +152,7 @@ def zbierz_plan(d, prog, nazwy, tury=False, min_odc=60):
             pominiete.append((baza, "rozna liczba linii z trescia: oryginal %d, wynik %d" % (len(nb_o), len(nb_r))))
             continue
         pozycja = {j: k for k, j in enumerate(nb_o)}
-        pliki.append({"baza": baza, "Lo": Lo, "dlugie": dlugie, "idx": {j: nb_r[pozycja[j]] for j, _ in dlugie}, "wynik": wp})
+        pliki.append({"baza": baza, "Lo": Lo, "dlugie": dlugie, "idx": {j: nb_r[pozycja[j]] for j, _, _ in dlugie}, "wynik": wp})
     return pliki, pominiete
 
 
@@ -141,7 +168,7 @@ def main():
     ap.add_argument("--pliki", default="", help="nazwy oryginalow bez .txt rozdzielone srednikiem (domyslnie wszystkie z dluga linia)")
     ap.add_argument("--prog", type=int, default=4000)
     ap.add_argument("--dziel-tury", action="store_true", help="tnij w KAZDYM miejscu zmiany mowcy (jak w scal.py --dziel-tury); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
-    ap.add_argument("--min-odcinek", type=int, default=60, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (0 = ciecie w kazdej granicy)")
+    ap.add_argument("--min-odcinek", type=int, default=0, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (domyslnie 0 = ciecie w kazdej granicy)")
     ap.add_argument("--sucho", action="store_true", help="z --zastosuj: tylko sprawdz, nic nie zapisuj")
     a = ap.parse_args()
     try:
@@ -161,12 +188,12 @@ def main():
     if not pliki:
         print("Brak plikow do naprawy.")
         return 0
-    wszystkie = [k for p in pliki for _, kaw in p["dlugie"] for k in kaw]
+    wszystkie = [k for p in pliki for _, kaw, _s in p["dlugie"] for k in kaw]
     pom = os.path.join(d, "DO_PRZETLUMACZENIA_" + os.path.basename(d) + ".txt")
     print("plikow do naprawy: %d | dlugich linii: %d | kawalkow do przetlumaczenia: %d | znakow: %d" % (
         len(pliki), sum(len(p["dlugie"]) for p in pliki), len(wszystkie), sum(len(k) for k in wszystkie)))
     for p in pliki:
-        print("  %-60s linie %s | dlugosci %s | kawalkow %d" % (p["baza"][:60], [j + 1 for j, _ in p["dlugie"]], [len(p["Lo"][j]) for j, _ in p["dlugie"]], sum(len(k) for _, k in p["dlugie"])))
+        print("  %-60s linie %s | dlugosci %s | kawalkow %d" % (p["baza"][:60], [j + 1 for j, _, _s in p["dlugie"]], [len(p["Lo"][j]) for j, _, _s in p["dlugie"]], sum(len(k) for _, k, _s in p["dlugie"])))
     if a.przygotuj:
         with open(pom, "w", encoding="utf-8", newline="\n") as fh:
             fh.write("\n\n".join(wszystkie) + "\n")
@@ -195,7 +222,7 @@ def main():
     zmiany, i, zle, lacznie_zam = {}, 0, [], rz.collections.Counter()
     for p in pliki:
         nowe = {}
-        for j, kaw in p["dlugie"]:
+        for j, kaw, sp in p["dlugie"]:
             tl = T[i:i + len(kaw)]
             i += len(kaw)
             r = sum(len(x) for x in tl) / max(1, sum(len(x) for x in kaw))
@@ -205,7 +232,7 @@ def main():
                 rk = len(k_t) / max(1, len(k_o))
                 if len(k_o) >= 300 and not 0.7 <= rk <= 1.7:
                     zle.append("%s linia %d, kawalek %d z %d: stosunek dlugosci %.2f" % (p["baza"][:40], j + 1, n_k, len(kaw), rk))
-            linia, zam = rz.zastosuj_poprawki(" ".join(tl), reguly)
+            linia, zam = rz.zastosuj_poprawki(rz._sklej_kawalki(tl, sp), reguly)
             lacznie_zam.update(zam)
             nowe[p["idx"][j]] = linia
         zmiany[p["wynik"]] = nowe
