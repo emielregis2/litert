@@ -366,6 +366,77 @@ def oczekiwane_pliki(nazwy, pliki, podzielone):
     return oryginaly, wyniki, tech
 
 
+def _norm_slowa(linia):
+    """Slowa linii (male litery, bez interpunkcji); lacznik i polpauza/pauza rozdzielaja slowa ('thfflup-thfflup' = 2 slowa)."""
+    return [x for x in (re.sub(r"[\W_]+", "", t.lower()) for t in re.split(r"[\s\-\u2013\u2014]+", linia)) if x]
+
+
+def _najdl_ciag(tokeny):
+    """Najdluzszy ciag tego samego slowa (>= 2 znaki) obok siebie: (dlugosc, slowo)."""
+    best, bw, run, prev = 0, "", 0, None
+    for w in tokeny:
+        if w == prev:
+            run += 1
+        else:
+            run, prev = 1, w
+        if len(w) >= 2 and run > best:
+            best, bw = run, w
+    return best, bw
+
+
+def _najdl_fraza(tokeny, min_pow):
+    """Najwiecej powtorzen obok siebie frazy 1-4 slow (np. 'a b a b a b' = 3); zwraca (powtorzenia, fraza) albo (0, '') gdy < min_pow."""
+    fr, fw = 0, ""
+    if not tokeny or max(collections.Counter(tokeny).values()) < min_pow:      # szybki filtr: fraza powtorzona min_pow razy zawiera slowo z >= min_pow wystapieniami
+        return fr, fw
+    for m in re.finditer(r"\b((?:\w+ ){1,4}?)\1{%d,}" % (min_pow - 1), " ".join(tokeny) + " "):
+        k = len(m.group(0).split()) // max(1, len(m.group(1).split()))
+        if k > fr:
+            fr, fw = k, m.group(1).strip()
+    return fr, fw
+
+
+def znajdz_petle_slow(linia, zrodlo=None, baza=None, min_run=10):
+    """'Petla slow' DeepL: to samo slowo (lub fraza 1-4 slow) powtorzone >= min_run razy obok siebie w linii wyniku, i to wyraznie wiecej niz w
+    odpowiedniej linii oryginalu (ciag musi byc co najmniej 2 x dluzszy + 1 niz najdluzszy ciag w oryginale). Zwraca (dlugosc, slowo/fraza) albo None."""
+    tok = _norm_slowa(linia)
+    dl, slowo = _najdl_ciag(tok)
+    if dl < min_run:
+        dl, slowo = _najdl_fraza(tok, min_run)
+        if dl < min_run:
+            return None
+    if baza is None:
+        zt = _norm_slowa(zrodlo) if zrodlo else []
+        baza = max(_najdl_ciag(zt)[0], _najdl_fraza(zt, 2)[0]) if zt else 0
+    return (dl, slowo) if dl >= 2 * baza + 1 else None
+
+
+def _sprawdz_petle_slow(nazwa, tekst, op, problemy):
+    """Blokujaca kontrola 'petli slow' DeepL (np. 'krzakowata' x 88): linia wyniku z ciagiem >= 10 tych samych slow lub fraz, ktorego nie ma w oryginale.
+    Taka linia jest zepsuta i trzeba ja przetlumaczyc ponownie: python dlugie_linie.py KATALOG --petle --przygotuj."""
+    lo = None
+    if op:
+        raw = open(op, "rb").read()
+        try:
+            o = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            o = raw.decode("cp1252", errors="replace")
+        lo = o.replace("\r\n", "\n").strip("\n").split("\n")
+    L = tekst.replace("\r\n", "\n").strip("\n").split("\n")
+    zgl = 0
+    for i, l in enumerate(L):
+        if len(l) < 40:
+            continue
+        w = znajdz_petle_slow(l, lo[i] if lo is not None and len(lo) == len(L) else "")
+        if w:
+            zgl += 1
+            if zgl <= 5:
+                problemy.append("KONTROLA: w wyniku %s, linia %d: ciag %d x '%s' (w oryginale nie ma takiego powtorzenia) - wyglada na petle DeepL; "
+                                "przetlumacz te linie ponownie: python dlugie_linie.py KATALOG --petle --przygotuj (po naprawie: rozdziel.py KATALOG --tylko-sprzatanie)" % (nazwa, i + 1, w[0], w[1][:30]))
+    if zgl > 5:
+        problemy.append("KONTROLA: w wyniku %s jeszcze %d linii z petla slow (pokazano 5)" % (nazwa, zgl - 5))
+
+
 def _sprawdz_petle(nazwa, tekst, op, min_ciag, problemy):
     """Wykrywa 'petle' tlumaczenia: dlugi ciag tego samego znaku (>= min_ciag) w wyniku, ktorego nie ma w oryginale
     (ciag musi byc ponad 2x dluzszy niz najdluzszy ciag tego znaku w oryginale). Taka petla (np. setki liter K) oznacza,
@@ -499,6 +570,7 @@ def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60, kontrola_akapitow=
                                 % (w, len(raw) / so))
         if min_ciag > 0:
             _sprawdz_petle(w, t, op, min_ciag, problemy)
+            _sprawdz_petle_slow(w, t, op, problemy)
         if kontrola_akapitow and op:
             _sprawdz_akapity(w, t, op, problemy)
         _raport_czkawki(w, t, op)

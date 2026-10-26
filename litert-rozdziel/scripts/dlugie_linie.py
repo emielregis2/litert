@@ -191,8 +191,11 @@ def czytaj_linie(p):
     return t.replace("\r\n", "\n").strip("\n").split("\n")
 
 
-def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0, ciecie=0, limit=0):
-    """Zwraca (lista plikow do naprawy: dict z kluczami baza, Lo, dlugie [(j, kawalki)], idx_wyniku {j: indeks linii wyniku}), lista pominietych)."""
+def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0, ciecie=0, limit=0, petle=False, linie=None):
+    """Zwraca (lista plikow do naprawy: dict z kluczami baza, Lo, dlugie [(j, kawalki, odstepy)], idx {j: indeks linii wyniku}, petle {j: (dlugosc, slowo)},
+    wynik), lista pominietych). Wybor linii: domyslnie linie oryginalu dluzsze niz 'prog'; z 'petle' linie, w ktorych WYNIK ma petle slow DeepL;
+    z 'linie' (lista numerow od 1) wskazane linie."""
+    rz = zaladuj_rozdziel() if petle else None
     zrodlo = os.path.join(d, "org") if os.path.isdir(os.path.join(d, "org")) else d
     pliki, pominiete = [], []
     for f in sorted(os.listdir(zrodlo), key=str.lower):
@@ -205,9 +208,23 @@ def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0, ciecie=0, limit=0):
         if not os.path.isfile(wp):
             continue
         Lo = czytaj_linie(os.path.join(zrodlo, f))
+        R = open(wp, "rb").read().decode("utf-8").split("\n")
+        nb_o = [i for i, x in enumerate(Lo) if x.strip()]
+        nb_r = [i for i, x in enumerate(R) if x.strip()]
+        zgodne = len(nb_o) == len(nb_r)
+        wybrane, info = None, {}
+        if petle or linie:
+            wybrane = {n - 1 for n in (linie or []) if 0 < n <= len(Lo)}
+            if petle and zgodne:
+                for t_i, k in enumerate(nb_r):
+                    if len(R[k]) >= 40:
+                        w = rz.znajdz_petle_slow(R[k], Lo[nb_o[t_i]])
+                        if w:
+                            wybrane.add(nb_o[t_i])
+                            info[nb_o[t_i]] = w
         dlugie = []
         for j, l in enumerate(Lo):
-            if len(l) > prog:
+            if (j in wybrane) if wybrane is not None else (len(l) > prog):
                 if tury:
                     kaw, sp = dziel_na_turach(skroc(l), prog, min_odc)
                 else:
@@ -220,14 +237,11 @@ def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0, ciecie=0, limit=0):
                 dlugie.append((j, kaw, sp))
         if not dlugie:
             continue
-        R = open(wp, "rb").read().decode("utf-8").split("\n")
-        nb_o = [i for i, x in enumerate(Lo) if x.strip()]
-        nb_r = [i for i, x in enumerate(R) if x.strip()]
-        if len(nb_o) != len(nb_r):
+        if not zgodne:
             pominiete.append((baza, "rozna liczba linii z trescia: oryginal %d, wynik %d" % (len(nb_o), len(nb_r))))
             continue
         pozycja = {j: k for k, j in enumerate(nb_o)}
-        pliki.append({"baza": baza, "Lo": Lo, "dlugie": dlugie, "idx": {j: nb_r[pozycja[j]] for j, _, _ in dlugie}, "wynik": wp})
+        pliki.append({"baza": baza, "Lo": Lo, "dlugie": dlugie, "idx": {j: nb_r[pozycja[j]] for j, _, _ in dlugie}, "petle": info, "wynik": wp})
     return pliki, pominiete
 
 
@@ -246,6 +260,8 @@ def main():
     ap.add_argument("--min-odcinek", type=int, default=0, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (domyslnie 0 = ciecie w kazdej granicy)")
     ap.add_argument("--ciecie-po", type=int, default=0, help="po osiagnieciu tylu znakow tnij na najblizszej kropce (jak w scal.py --ciecie-po); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
     ap.add_argument("--limit-linii", type=int, default=800, help="twardy limit dlugosci kawalka w znakach (domyslnie 800, jak w scal.py --limit-linii; 0 = wylaczone); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
+    ap.add_argument("--petle", action="store_true", help="zamiast dlugich linii wybierz linie, w ktorych WYNIK ma petle slow DeepL (np. 'krzakowata' x 88); plik pomocniczy ma koncowke _petle")
+    ap.add_argument("--linie", default="", help="zamiast dlugich linii wybierz wskazane linie (numery od 1 rozdzielone srednikiem; dokladnie jeden plik w --pliki); plik pomocniczy ma koncowke _linie")
     ap.add_argument("--sucho", action="store_true", help="z --zastosuj: tylko sprawdz, nic nie zapisuj")
     a = ap.parse_args()
     try:
@@ -257,7 +273,16 @@ def main():
         print("Uzycie: dlugie_linie.py KATALOG --przygotuj | --zastosuj [--pliki \"A;B\"] [--prog 4000] [--sucho]")
         return 1
     nazwy = {x.strip().lower() for x in a.pliki.split(";") if x.strip()}
-    pliki, pominiete = zbierz_plan(d, a.prog, nazwy, a.dziel_tury, a.min_odcinek, a.ciecie_po, a.limit_linii)
+    try:
+        linie = [int(x) for x in a.linie.split(";") if x.strip()] or None
+    except ValueError:
+        print("BLAD: --linie to numery linii od 1 rozdzielone srednikiem, np. --linie \"5176;5180\"")
+        return 1
+    if linie and len(nazwy) != 1:
+        print("BLAD: --linie wymaga dokladnie jednego pliku w --pliki")
+        return 1
+    sufiks = "_petle" if a.petle else ("_linie" if linie else "")
+    pliki, pominiete = zbierz_plan(d, a.prog, nazwy, a.dziel_tury, a.min_odcinek, a.ciecie_po, a.limit_linii, a.petle, linie)
     for b, powod in pominiete:
         print("POMINIETO %s: %s" % (b, powod))
     for nz in sorted(nazwy - {p["baza"].lower() for p in pliki} - {b.lower() for b, _ in pominiete}):
@@ -266,20 +291,22 @@ def main():
         print("Brak plikow do naprawy.")
         return 0
     wszystkie = [k for p in pliki for _, kaw, _s in p["dlugie"] for k in kaw]
-    pom = os.path.join(d, "DO_PRZETLUMACZENIA_" + os.path.basename(d) + ".txt")
+    pom = os.path.join(d, "DO_PRZETLUMACZENIA_" + os.path.basename(d) + sufiks + ".txt")
     print("plikow do naprawy: %d | dlugich linii: %d | kawalkow do przetlumaczenia: %d | znakow: %d" % (
         len(pliki), sum(len(p["dlugie"]) for p in pliki), len(wszystkie), sum(len(k) for k in wszystkie)))
     for p in pliki:
         print("  %-60s linie %s | dlugosci %s | kawalkow %d" % (p["baza"][:60], [j + 1 for j, _, _s in p["dlugie"]], [len(p["Lo"][j]) for j, _, _s in p["dlugie"]], sum(len(k) for _, k, _s in p["dlugie"])))
+        for j, (dlp, slp) in sorted(p["petle"].items()):
+            print("      petla: linia %d: %d x '%s'" % (j + 1, dlp, slp[:30]))
     if a.przygotuj:
         with open(pom, "w", encoding="utf-8", newline="\n") as fh:
             fh.write("\n\n".join(wszystkie) + "\n")
         print("\nZAPISANO plik pomocniczy: %s (%d B, %d kawalkow)" % (pom, os.path.getsize(pom), len(wszystkie)))
-        print("Przetlumacz go w DeepL i zapisz jako: DO_PRZETLUMACZENIA_%s pl.txt (w tym samym katalogu), potem uruchom z --zastosuj." % os.path.basename(d))
+        print("Przetlumacz go w DeepL i zapisz jako: DO_PRZETLUMACZENIA_%s%s pl.txt (w tym samym katalogu), potem uruchom z --zastosuj (te same flagi)." % (os.path.basename(d), sufiks))
         return 0
-    tr = next((x for x in (os.path.join(d, "DO_PRZETLUMACZENIA_" + os.path.basename(d) + " pl.txt"), os.path.join(d, "DO_PRZETLUMACZENIA_" + os.path.basename(d) + " pl (1).txt")) if os.path.isfile(x)), None)
+    tr = next((x for x in (os.path.join(d, "DO_PRZETLUMACZENIA_" + os.path.basename(d) + sufiks + " pl.txt"), os.path.join(d, "DO_PRZETLUMACZENIA_" + os.path.basename(d) + sufiks + " pl (1).txt")) if os.path.isfile(x)), None)
     if not tr:
-        print("BLAD: brak pliku z tlumaczeniem (DO_PRZETLUMACZENIA_%s pl.txt)" % os.path.basename(d))
+        print("BLAD: brak pliku z tlumaczeniem (DO_PRZETLUMACZENIA_%s%s pl.txt)" % (os.path.basename(d), sufiks))
         return 1
     tekst_tr = open(tr, "rb").read().decode("utf-8-sig").replace("\r\n", "\n")
     T = [x.strip() for x in tekst_tr.split("\n") if x.strip()]
@@ -311,6 +338,9 @@ def main():
                     zle.append("%s linia %d, kawalek %d z %d: stosunek dlugosci %.2f" % (p["baza"][:40], j + 1, n_k, len(kaw), rk))
             linia, zam = rz.zastosuj_poprawki(rz._sklej_kawalki(tl, sp), reguly)
             lacznie_zam.update(zam)
+            wp2 = rz.znajdz_petle_slow(linia, p["Lo"][j])
+            if wp2:
+                zle.append("%s linia %d: w nowym tlumaczeniu nadal petla slow (%d x '%s') - przygotuj z mniejszym --limit-linii (np. 400)" % (p["baza"][:40], j + 1, wp2[0], wp2[1][:30]))
             nowe[p["idx"][j]] = linia
         zmiany[p["wynik"]] = nowe
     if zle:
@@ -341,13 +371,16 @@ def main():
     for wp, nt in nowe_teksty.items():
         with open(wp, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(nt)
-    print("\nZAPISANO: podmieniono %d dlugich linii w %d plikach; zamian ze slownika poprawek: %d" % (sum(len(v) for v in zmiany.values()), len(zmiany), sum(lacznie_zam.values())))
+    print("\nZAPISANO: podmieniono %d linii w %d plikach; zamian ze slownika poprawek: %d" % (sum(len(v) for v in zmiany.values()), len(zmiany), sum(lacznie_zam.values())))
+    for p in pliki:
+        for j, (dlp, slp) in sorted(p["petle"].items()):
+            print("   linia %d: petla %d x '%s' -> naprawiona" % (j + 1, dlp, slp[:30]))
     usuniete = []
-    for f in sorted(os.listdir(d)):
-        if re.match(r"^DO_PRZETLUMACZENIA_.*\.txt$", f):
-            pf = os.path.join(d, f)
-            if rz._do_kosza(pf) or rz._usun(pf):
-                usuniete.append(f)
+    baza_pom = "DO_PRZETLUMACZENIA_" + os.path.basename(d) + sufiks
+    for f in (baza_pom + ".txt", baza_pom + " pl.txt", baza_pom + " pl (1).txt"):
+        pf = os.path.join(d, f)
+        if os.path.isfile(pf) and (rz._do_kosza(pf) or rz._usun(pf)):
+            usuniete.append(f)
     print("pliki pomocnicze przeniesione do Kosza: %s" % usuniete)
     return 0
 
