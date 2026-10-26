@@ -298,11 +298,13 @@ def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
     return wynik, "".join(sep)
 
 
-def tnij_po_kropce(tekst, dl=1000, okno=1000, min_ogon=150):
-    """Tnie 'tekst' na kawalki ok. 'dl' znakow: po osiagnieciu 'dl' znakow szuka NAJBLIZSZEJ kropki konczacej zdanie (kropka, ewentualnie zamykajacy
-    cudzyslow/nawias, pojedyncza spacja i poczatek nastepnego zdania; nie tniemy na wielokropku) i tnie w tej spacji (spacja jest usuwana; polaczenie
-    kawalkow pojedyncza spacja odtwarza tekst co do znaku). Gdy w nastepnych 'okno' znakach nie ma kropki, uzywa '!' lub '?', a w ostatecznosci
-    dowolnej pojedynczej spacji. Ogon krotszy niz 'min_ogon' znakow zostaje przy ostatnim kawalku."""
+def tnij_po_kropce(tekst, dl=1000, okno=1000, min_ogon=150, twardy=False):
+    """Tnie 'tekst' na kawalki. Tryb domyslny: po osiagnieciu 'dl' znakow szuka NAJBLIZSZEJ kropki konczacej zdanie (kropka, ewentualnie zamykajacy
+    cudzyslow/nawias, pojedyncza spacja i poczatek nastepnego zdania; nie tniemy na wielokropku) i tnie w tej spacji; gdy w nastepnych 'okno' znakach
+    nie ma kropki, uzywa '!' lub '?', a w ostatecznosci dowolnej pojedynczej spacji. Tryb 'twardy': zaden kawalek nie ma wiecej niz 'dl' znakow -
+    tniemy na OSTATNIEJ kropce przed limitem (gdy brak: '!' '?', potem ',;:', na koncu ostatnia spacja przed limitem). Spacja w miejscu ciecia jest
+    usuwana; polaczenie kawalkow pojedyncza spacja odtwarza tekst co do znaku. Ogon krotszy niz 'min_ogon' znakow zostaje przy ostatnim kawalku
+    (w trybie twardym dbamy o to, o ile limit na to pozwala)."""
     n = len(tekst)
     if dl <= 0 or n <= dl:
         return [tekst]
@@ -314,20 +316,39 @@ def tnij_po_kropce(tekst, dl=1000, okno=1000, min_ogon=150):
         return p in znaki or (p in "\"'\u201d\u2019)" and tekst[i - 2] in znaki)
     kawalki, start = [], 0
     while n - start > dl:
-        koniec = min(n - 1, start + dl + okno)
         b = None
-        for znaki in (".", "!?"):
-            for i in range(start + dl, koniec):
-                if zdanie(i, znaki) and n - (i + 1) >= min_ogon:
-                    b = i
+        if twardy:
+            gorna = start + dl
+            dolna = start + max(100, dl // 4)
+            for hi in (min(gorna, n - 1 - min_ogon), gorna):
+                for znaki in (".", "!?", ",;:"):
+                    for i in range(hi, dolna, -1):
+                        if zdanie(i, znaki):
+                            b = i
+                            break
+                    if b is not None:
+                        break
+                if b is not None:
                     break
-            if b is not None:
-                break
-        if b is None:
-            for i in range(start + dl, koniec):
-                if tekst[i] == " " and tekst[i - 1] != " " and tekst[i + 1] != " " and n - (i + 1) >= min_ogon:
-                    b = i
+            if b is None:
+                for i in range(gorna, start + 1, -1):
+                    if i + 1 < n and tekst[i] == " " and tekst[i - 1] != " " and tekst[i + 1] != " ":
+                        b = i
+                        break
+        else:
+            koniec = min(n - 1, start + dl + okno)
+            for znaki in (".", "!?"):
+                for i in range(start + dl, koniec):
+                    if zdanie(i, znaki) and n - (i + 1) >= min_ogon:
+                        b = i
+                        break
+                if b is not None:
                     break
+            if b is None:
+                for i in range(start + dl, koniec):
+                    if tekst[i] == " " and tekst[i - 1] != " " and tekst[i + 1] != " " and n - (i + 1) >= min_ogon:
+                        b = i
+                        break
         if b is None:
             break
         kawalki.append(tekst[start:b])
@@ -336,11 +357,11 @@ def tnij_po_kropce(tekst, dl=1000, okno=1000, min_ogon=150):
     return kawalki
 
 
-def rozbij_po_kropce(ch, sp, dl):
+def rozbij_po_kropce(ch, sp, dl, twardy=False):
     """Stosuje tnij_po_kropce do kazdego kawalka z listy 'ch' (z odstepami 'sp': 's' = spacja, 'q' = bez niczego) i zwraca (kawalki, odstepy)."""
     nowe, nsp = [], []
     for i, p in enumerate(ch):
-        czesci = tnij_po_kropce(p, dl)
+        czesci = tnij_po_kropce(p, dl, twardy=twardy)
         nowe.extend(czesci)
         nsp.extend(["s"] * (len(czesci) - 1))
         if i < len(ch) - 1:
@@ -368,6 +389,8 @@ def main():
     ap.add_argument("--prog-tury", type=int, default=0, help="z --dziel-tury: od jakiej dlugosci linii ciac na zmianach mowcy (domyslnie 0 = kazda linia)")
     ap.add_argument("--ciecie-po", type=int, default=0,
                     help="po osiagnieciu tylu znakow tnij linie (lub odcinek) na NAJBLIZSZEJ kropce konczacej zdanie (np. 1000); 0 = wylaczone; dziala razem z --dziel-tury lub osobno")
+    ap.add_argument("--limit-linii", type=int, default=0,
+                    help="TWARDY limit dlugosci linii: zadna linia (odcinek) nie ma wiecej niz tyle znakow (np. 800); tnie na OSTATNIEJ kropce przed limitem (potem ! ?, ,;:, spacja); 0 = wylaczone; ma pierwszenstwo przed --ciecie-po")
     a = ap.parse_args()
 
     d = os.path.normpath(a.katalog)
@@ -436,7 +459,9 @@ def main():
                 else:
                     ch = dziel_dluga_linie(l, a.prog_linii)
                     sp = "s" * (len(ch) - 1)
-                if a.ciecie_po:
+                if a.limit_linii:
+                    ch, sp = rozbij_po_kropce(ch, sp, a.limit_linii, True)
+                elif a.ciecie_po:
                     ch, sp = rozbij_po_kropce(ch, sp, a.ciecie_po)
                 if len(ch) > 1:
                     dz.append((j, len(ch)))
