@@ -259,6 +259,26 @@ def dziel_dluga_linie(linia, prog=4000, cel=3000, min_kawalek=1200, min_tura=150
     return kawalki
 
 
+def dziel_na_turach(linia, prog=4000, min_odc=60):
+    """Dzieli linie dluzsza niz 'prog' w KAZDYM miejscu zmiany mowcy ('"" ' albo '" "'), ale tak, by zaden odcinek nie byl krotszy niz 'min_odc'
+    (krotsze zostaja przy sasiednim: DeepL najchetniej scala bardzo krotkie linie). Odcinki, ktore nadal sa dluzsze niz 'prog' (brak granic zmiany
+    mowcy), sa dzielone po zdaniach (dziel_dluga_linie). Polaczenie odcinkow pojedyncza spacja odtwarza linie co do znaku."""
+    if len(linia) <= prog:
+        return [linia]
+    kandydaci = [i for i in range(2, len(linia) - 1)
+                 if linia[i] == " " and linia[i - 1] == '"' and (linia[i - 2] == '"' or linia[i + 1] == '"')]
+    odcinki, start = [], 0
+    for i in kandydaci:
+        if i - start >= min_odc and len(linia) - i - 1 >= min_odc:
+            odcinki.append(linia[start:i])
+            start = i + 1
+    odcinki.append(linia[start:])
+    wynik = []
+    for o in odcinki:
+        wynik.extend(dziel_dluga_linie(o, prog) if len(o) > prog else [o])
+    return wynik
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
@@ -273,6 +293,9 @@ def main():
                     help="NIE dziel bardzo dlugich linii na kawalki (domyslnie linie dluzsze niz --prog-linii sa dzielone na granicach zdan, "
                          "a rozdziel sklada je z powrotem po tlumaczeniu; DeepL traci jakosc na bardzo dlugich liniach)")
     ap.add_argument("--prog-linii", type=int, default=4000, help="od ilu znakow linia jest dzielona na kawalki (domyslnie 4000)")
+    ap.add_argument("--dziel-tury", action="store_true",
+                    help="dlugie linie tnij w KAZDYM miejscu zmiany mowcy (po \"\" lub \" \"), a nie tylko w preferowanych (odcinki krotsze niz --min-odcinek lacz z sasiednimi)")
+    ap.add_argument("--min-odcinek", type=int, default=60, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (0 = ciecie w kazdej granicy)")
     a = ap.parse_args()
 
     d = os.path.normpath(a.katalog)
@@ -336,7 +359,7 @@ def main():
         if not a.bez_dzielenia:                       # bardzo dlugie linie -> kawalki na granicach zdan (spacja -> nowa linia, rozmiar bez zmian)
             dz, nowe_l = [], []
             for j, l in enumerate(txt.split("\n")[:-1]):
-                ch = dziel_dluga_linie(l, a.prog_linii)
+                ch = dziel_na_turach(l, a.prog_linii, a.min_odcinek) if a.dziel_tury else dziel_dluga_linie(l, a.prog_linii)
                 if len(ch) > 1:
                     dz.append((j, len(ch)))
                 nowe_l.extend(ch)

@@ -67,7 +67,7 @@ Niektóre stare pliki mają cudzysłowy i apostrofy zapisane osobnymi bajtami (`
 
 ## Dzielenie długich linii
 
-DeepL traci jakość na bardzo długich liniach (podwojone słowa, rozsypane „się"). `litert` domyślnie dzieli linie dłuższe niż 4000 znaków na kawałki na granicach zdań (`--bez-dzielenia` wyłącza), a `litert-rozdziel` składa je z powrotem po tłumaczeniu. Istniejące tłumaczenia naprawia `litert-rozdziel/scripts/dlugie_linie.py KATALOG --przygotuj | --zastosuj`.
+DeepL traci jakość na bardzo długich liniach (podwojone słowa, rozsypane „się"). `litert` domyślnie dzieli linie dłuższe niż 4000 znaków na kawałki na granicach zdań (`--bez-dzielenia` wyłącza), a `litert-rozdziel` składa je z powrotem po tłumaczeniu. Istniejące tłumaczenia naprawia `litert-rozdziel/scripts/dlugie_linie.py KATALOG --przygotuj | --zastosuj`. Opcja `--dziel-tury` tnie długie linie w każdej zmianie mówcy (`""` lub `" "`), a nie tylko w preferowanych miejscach.
 
 ## Duplikaty
 

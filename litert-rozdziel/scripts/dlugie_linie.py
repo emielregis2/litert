@@ -68,6 +68,26 @@ def dziel_dluga_linie(linia, prog=4000, cel=3000, min_kawalek=1200, min_tura=150
     return kawalki
 
 
+def dziel_na_turach(linia, prog=4000, min_odc=60):
+    """Dzieli linie dluzsza niz 'prog' w KAZDYM miejscu zmiany mowcy ('"" ' albo '" "'), ale tak, by zaden odcinek nie byl krotszy niz 'min_odc'
+    (krotsze zostaja przy sasiednim: DeepL najchetniej scala bardzo krotkie linie). Odcinki, ktore nadal sa dluzsze niz 'prog' (brak granic zmiany
+    mowcy), sa dzielone po zdaniach (dziel_dluga_linie). Polaczenie odcinkow pojedyncza spacja odtwarza linie co do znaku."""
+    if len(linia) <= prog:
+        return [linia]
+    kandydaci = [i for i in range(2, len(linia) - 1)
+                 if linia[i] == " " and linia[i - 1] == '"' and (linia[i - 2] == '"' or linia[i + 1] == '"')]
+    odcinki, start = [], 0
+    for i in kandydaci:
+        if i - start >= min_odc and len(linia) - i - 1 >= min_odc:
+            odcinki.append(linia[start:i])
+            start = i + 1
+    odcinki.append(linia[start:])
+    wynik = []
+    for o in odcinki:
+        wynik.extend(dziel_dluga_linie(o, prog) if len(o) > prog else [o])
+    return wynik
+
+
 def skroc(l):
     return re.sub(r"([^\W\d_]|[!?.])\1{4,}", lambda m: m.group(1) * 4, l)
 
@@ -81,7 +101,7 @@ def czytaj_linie(p):
     return t.replace("\r\n", "\n").strip("\n").split("\n")
 
 
-def zbierz_plan(d, prog, nazwy):
+def zbierz_plan(d, prog, nazwy, tury=False, min_odc=60):
     """Zwraca (lista plikow do naprawy: dict z kluczami baza, Lo, dlugie [(j, kawalki)], idx_wyniku {j: indeks linii wyniku}), lista pominietych)."""
     zrodlo = os.path.join(d, "org") if os.path.isdir(os.path.join(d, "org")) else d
     pliki, pominiete = [], []
@@ -95,7 +115,7 @@ def zbierz_plan(d, prog, nazwy):
         if not os.path.isfile(wp):
             continue
         Lo = czytaj_linie(os.path.join(zrodlo, f))
-        dlugie = [(j, dziel_dluga_linie(skroc(l), prog)) for j, l in enumerate(Lo) if len(l) > prog]
+        dlugie = [(j, dziel_na_turach(skroc(l), prog, min_odc) if tury else dziel_dluga_linie(skroc(l), prog)) for j, l in enumerate(Lo) if len(l) > prog]
         if not dlugie:
             continue
         R = open(wp, "rb").read().decode("utf-8").split("\n")
@@ -120,6 +140,8 @@ def main():
     ap.add_argument("--zastosuj", action="store_true")
     ap.add_argument("--pliki", default="", help="nazwy oryginalow bez .txt rozdzielone srednikiem (domyslnie wszystkie z dluga linia)")
     ap.add_argument("--prog", type=int, default=4000)
+    ap.add_argument("--dziel-tury", action="store_true", help="tnij w KAZDYM miejscu zmiany mowcy (jak w scal.py --dziel-tury); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
+    ap.add_argument("--min-odcinek", type=int, default=60, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (0 = ciecie w kazdej granicy)")
     ap.add_argument("--sucho", action="store_true", help="z --zastosuj: tylko sprawdz, nic nie zapisuj")
     a = ap.parse_args()
     try:
@@ -131,7 +153,7 @@ def main():
         print("Uzycie: dlugie_linie.py KATALOG --przygotuj | --zastosuj [--pliki \"A;B\"] [--prog 4000] [--sucho]")
         return 1
     nazwy = {x.strip().lower() for x in a.pliki.split(";") if x.strip()}
-    pliki, pominiete = zbierz_plan(d, a.prog, nazwy)
+    pliki, pominiete = zbierz_plan(d, a.prog, nazwy, a.dziel_tury, a.min_odcinek)
     for b, powod in pominiete:
         print("POMINIETO %s: %s" % (b, powod))
     for nz in sorted(nazwy - {p["baza"].lower() for p in pliki} - {b.lower() for b, _ in pominiete}):
