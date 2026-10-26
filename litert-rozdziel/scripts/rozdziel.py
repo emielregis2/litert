@@ -22,9 +22,10 @@ tylko te brakujace, bez nadpisywania; wylaczenie: --bez-zip.
 
 Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10]
                                                          [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 60]
+                                                         [--bez-poprawek] [--tylko-poprawki [--sucho]]
                                                          [--bez-kontroli-akapitow]
 """
-import os, re, sys, argparse, shutil
+import os, re, sys, argparse, shutil, collections
 
 MARK = re.compile(r"^[\s=\-_*#~]*\[\[\s*(\d+)\s*(?:\|[^\]\n]*)?\]\][\s=\-_*#~]*$")
 
@@ -207,6 +208,93 @@ def _do_kosza(path):
     return wynik == 0 and not op.fAnyOperationsAborted and not os.path.exists(path)
 
 
+def wczytaj_poprawki(sciezka=None):
+    """Slownik poprawek bledow DeepL (plik poprawki_deepl.txt obok SKILL.md): linie 'zle => dobrze', '#' = komentarz.
+    Zamieniane sa tylko cale wyrazy, bez rozroznienia wielkosci liter (wielkosc liter jest zachowana)."""
+    sciezka = sciezka or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "poprawki_deepl.txt")
+    reguly = []
+    if os.path.isfile(sciezka):
+        for linia in open(sciezka, encoding="utf-8-sig"):
+            linia = linia.split("#", 1)[0].strip()
+            if "=>" in linia:
+                z, d = (x.strip() for x in linia.split("=>", 1))
+                if z and d:
+                    reguly.append((z, d))
+    return reguly
+
+
+def zastosuj_poprawki(tekst, reguly):
+    """Zwraca (nowy_tekst, Counter regula -> liczba zamian). Nie zmienia liczby linii."""
+    liczby = collections.Counter()
+    for z, d in reguly:
+        rx = re.compile(r"(?<![^\W\d_])" + re.escape(z) + r"(?![^\W\d_])", re.I)
+
+        def zam(m, z=z, d=d):
+            s = m.group(0)
+            liczby[z] += 1
+            if len(s) > 1 and s.isupper():
+                return d.upper()
+            if s[0].isupper():
+                return d[0].upper() + d[1:]
+            return d
+        tekst = rx.sub(zam, tekst)
+    return tekst, liczby
+
+
+def tylko_poprawki(d, reguly, sucho=False):
+    """Stosuje slownik poprawek do istniejacych tlumaczen ' pl.txt' w katalogu (bez spisu, bez org). sucho=True: tylko liczby."""
+    if not reguly:
+        print("BLAD: brak regul (plik poprawki_deepl.txt)")
+        return 1
+    lacznie, sprawdzone, zmienione = collections.Counter(), 0, 0
+    for f in sorted(os.listdir(d)):
+        p = os.path.join(d, f)
+        if not (f.endswith(" pl.txt") and os.path.isfile(p)) or re.search(r"_all(_\d+)? pl\.txt$", f) or f.startswith("DO_PRZETLUMACZENIA"):
+            continue
+        sprawdzone += 1
+        try:
+            t = open(p, "rb").read().decode("utf-8")
+        except UnicodeDecodeError:
+            print("POMINIETO (nie jest UTF-8):", f)
+            continue
+        nowy, l = zastosuj_poprawki(t, reguly)
+        if l:
+            zmienione += 1
+            lacznie.update(l)
+            if not sucho:
+                with open(p, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(nowy)
+    print("POPRAWKI SLOWNIKOWE%s: sprawdzono %d plikow, %s %d, zamian %d%s" % (
+        " (SUCHO: nic nie zapisano)" if sucho else "", sprawdzone, "do zmiany" if sucho else "zmieniono", zmienione, sum(lacznie.values()),
+        (" (" + ", ".join("%s=%d" % kv for kv in lacznie.most_common()) + ")") if lacznie else ""))
+    return 0
+
+
+def _raport_czkawki(nazwa, tekst, op):
+    """Informacyjny raport 'czkawki' DeepL (nie blokuje): nadwyzka podwojonych slow, powtorzonych sasiednich linii i 4x tego samego slowa
+    wzgledem oryginalu."""
+    o = ""
+    if op:
+        raw = open(op, "rb").read()
+        try:
+            o = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            o = raw.decode("cp1252", errors="replace")
+    dbl = re.compile(r"\b([^\W\d_]{3,})\s+\1\b", re.I)
+    x4 = re.compile(r"\b([^\W\d_]+)(?:\s+\1){3,}\b", re.I)
+
+    def powt(txt):
+        L = [x.strip() for x in txt.split("\n") if x.strip()]
+        return sum(1 for a, b in zip(L, L[1:]) if len(a) >= 25 and a == b)
+    nad = len(dbl.findall(tekst)) - len(dbl.findall(o))
+    if nad >= 20 and 1e4 * nad / max(1, len(tekst.split())) >= 50:
+        print("INFO: CZKAWKA: %s: %d podwojonych slow ponad oryginal (%.0f na 10 tys. slow) - DeepL mogl podwajac slowa" % (nazwa, nad, 1e4 * nad / max(1, len(tekst.split()))))
+    if powt(tekst) - powt(o) >= 3:
+        print("INFO: CZKAWKA: %s: %d powtorzonych sasiednich linii ponad oryginal" % (nazwa, powt(tekst) - powt(o)))
+    if len(x4.findall(tekst)) - len(x4.findall(o)) >= 3:
+        print("INFO: CZKAWKA: %s: to samo slowo 4 razy z rzedu: %d miejsc ponad oryginal" % (nazwa, len(x4.findall(tekst)) - len(x4.findall(o))))
+
+
 def oczekiwane_pliki(nazwy, pliki, podzielone):
     """Zwraca (oryginaly, wyniki, pliki techniczne) na podstawie spisu."""
     oryginaly = [nazwy[nr] for nr in sorted(nazwy)] + [o for o, _ in podzielone]
@@ -351,6 +439,7 @@ def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60, kontrola_akapitow=
             _sprawdz_petle(w, t, op, min_ciag, problemy)
         if kontrola_akapitow and op:
             _sprawdz_akapity(w, t, op, problemy)
+        _raport_czkawki(w, t, op)
     return problemy
 
 
@@ -489,8 +578,16 @@ def main():
                     help="od ilu powtorzen jednego znaku ciag w wyniku jest sprawdzany jako mozliwa petla DeepL (0 = wylacz kontrole)")
     ap.add_argument("--bez-kontroli-akapitow", action="store_true",
                     help="wylacz kontrole liczby linii z trescia (wykrywanie akapitow pominietych przez DeepL)")
+    ap.add_argument("--bez-poprawek", action="store_true", help="nie stosuj slownika poprawek DeepL (poprawki_deepl.txt) przy zapisie wynikow")
+    ap.add_argument("--tylko-poprawki", action="store_true",
+                    help="tylko zastosuj slownik poprawek DeepL do istniejacych tlumaczen ' pl.txt' w katalogu (bez rozdzielania i sprzatania)")
+    ap.add_argument("--sucho", action="store_true", help="z --tylko-poprawki: tylko policz zamiany, nic nie zapisuj")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
+    reguly = [] if a.bez_poprawek else wczytaj_poprawki()
+    zam_licznik, zam_plikow = collections.Counter(), [0]
+    if a.tylko_poprawki:
+        return tylko_poprawki(d, reguly, a.sucho)
     spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
     spis_path = os.path.join(d, spis_nazwa)
     if a.tylko_sprzatanie and not os.path.exists(spis_path) and os.path.exists(os.path.join(d, "org", spis_nazwa)):
@@ -565,6 +662,10 @@ def main():
             if os.path.exists(out_path) and not a.nadpisz:
                 problemy.append("POMINIETO (plik juz istnieje, uzyj --nadpisz): " + out_name)
                 continue
+            tekst, _zl = zastosuj_poprawki(tekst, reguly)
+            if _zl:
+                zam_licznik.update(_zl)
+                zam_plikow[0] += 1
             with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(tekst)
             zapisane += 1
@@ -593,11 +694,17 @@ def main():
                 tekst += "\n" * PRZERWY[cn] + kw.strip("\n") + "\n"
         else:                                       # starszy spis (bez informacji o przerwach): laczenie bez zmian
             tekst = "".join(k if k.endswith("\n") else k + "\n" for k in kawalki)
+        tekst, _zl = zastosuj_poprawki(tekst, reguly)
+        if _zl:
+            zam_licznik.update(_zl)
+            zam_plikow[0] += 1
         with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(tekst)
         zapisane += 1
         print("OK (zlozono z %d czesci)" % len(pl_czesci), out_name, len(tekst.encode("utf-8")), "bajtow")
     print("Zapisano plikow:", zapisane, "(UTF-8 bez BOM, konce linii LF)")
+    if zam_licznik:
+        print("POPRAWKI SLOWNIKOWE: %d zamian w %d plikach (%s)" % (sum(zam_licznik.values()), zam_plikow[0], ", ".join("%s=%d" % kv for kv in zam_licznik.most_common())))
     for p in problemy:
         print("UWAGA:", p)
     if naprawy:   # raport z automatycznego usuwania znakow U+FFFD (tez zapisywany do pliku)

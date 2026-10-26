@@ -61,6 +61,10 @@ DeepL czasem po cichu pomija akapit (w danych autora ok. 0,6% plików). `litert-
 
 Niektóre stare pliki mają cudzysłowy i apostrofy zapisane osobnymi bajtami (`D4`, `D3`) z uszkodzonym następnym znakiem. `scal.py` to wykrywa i ostrzega, a `litert/scripts/napraw_kodowanie.py KATALOG [--zapisz]` naprawia (domyślnie tylko raport; stary oryginał trafia do `_zastapione`). Po naprawie trzeba powtórzyć scalanie.
 
+## Słownik poprawek DeepL
+
+`litert-rozdziel/poprawki_deepl.txt` (`błędna => poprawna`) zawiera systematyczne błędy DeepL (np. `polizaj` → `poliż`). `rozdziel` stosuje je automatycznie przy zapisie wyników, a `rozdziel KATALOG --tylko-poprawki [--sucho]` poprawia istniejące tłumaczenia. Kontrola wypisuje też informacyjny raport „czkawki" (podwojone słowa, powtórzone linie).
+
 ## Duplikaty
 
 `litert/scripts/duplikaty.py KATALOG [--wzorzec @] [--prog 0.6] [--do-kosza]` wskazuje pliki z wzorcem w nazwie (domyślnie `@`), których treść w co najmniej 60% jest w innym pliku bez wzorca. Domyślnie tylko raport, a z `--do-kosza` takie pliki trafiają do Kosza (Windows). Po usunięciu duplikatów trzeba powtórzyć scalanie.

@@ -1,0 +1,12 @@
+# Slownik poprawek bledow DeepL (skill litert-rozdziel).
+# Format: bledna forma => poprawna forma. '#' zaczyna komentarz.
+# Zamieniane sa tylko CALE wyrazy, bez rozroznienia wielkosci liter (wielkosc liter jest zachowana).
+# Nowe wpisy dopisuje sie na polecenie Darka ("ten wyraz jest bledny, powinno byc tamto").
+
+# Tryb rozkazujacy od "lizac" (DeepL daje -lizaj zamiast -liz): w danych ok. 800 wystapien i tylko 33 poprawne "poliz"
+polizaj => poliż
+polizajcie => poliżcie
+wylizaj => wyliż
+wylizajcie => wyliżcie
+oblizaj => obliż
+zlizaj => zliż
