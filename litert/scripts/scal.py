@@ -210,6 +210,55 @@ def skroc_przeciagniecia(txt, min_dl=5, do=4):
     return _re.subn(r"([^\W\d_]|[!?.])\1{%d,}" % (min_dl - 1), lambda m: m.group(1) * do, txt)
 
 
+def dziel_dluga_linie(linia, prog=4000, cel=3000, min_kawalek=1200, min_tura=1500):
+    """Dzieli bardzo dluga linie na kawalki na granicach: najpierw zmiany mowcy ('"" ' albo '" "', czyli zamkniecie i otwarcie cudzyslowu), a gdy
+    ich brak w oknie - zdania (pojedyncza spacja po . ! ? albo po zamykajacym cudzyslowie/nawiasie po nich). Polaczenie kawalkow pojedyncza spacja
+    odtwarza linie co do znaku. Linie do 'prog' znakow zwraca bez zmian. Powod: DeepL traci jakosc na bardzo dlugich liniach (podwojone slowa,
+    zaimki 'On/Ja', rozsypane 'sie'); w danych wszystkie pliki z 'czkawka' mialy linie > 6900 znakow. Kawalki nie sa za krotkie (min. 1200 znakow,
+    cel 3000), bo DeepL scala krotkie linie, a kazdy odcinek traci kontekst (np. rodzaj narratora)."""
+    if len(linia) <= prog:
+        return [linia]
+
+    def tura(i):          # spacja na granicy zmiany mowcy: '"" ' (zamkniecie + otwarcie cudzyslowu) albo '" "'
+        return i >= 2 and i + 1 < len(linia) and linia[i] == " " and linia[i - 1] == '"' and (linia[i - 2] == '"' or linia[i + 1] == '"')
+
+    def granica(i):
+        if tura(i):
+            return True
+        if i < 2 or i + 1 >= len(linia) or linia[i] != " " or linia[i - 1] == " " or linia[i + 1] == " ":
+            return False
+        p = linia[i - 1]
+        return p in ".!?" or (p in "\"'\u201d\u2019)" and linia[i - 2] in ".!?")
+    kawalki, start = [], 0
+    while len(linia) - start > prog:
+        b = None
+        for i in range(start + cel, start + min_tura, -1):               # 1. preferuj granice zmiany mowcy ("" lub " ")
+            if tura(i):
+                b = i
+                break
+        if b is None:                                                     # 2. ostatnia granica zdania w oknie [min, cel]
+            for i in range(start + cel, start + min_kawalek, -1):
+                if granica(i):
+                    b = i
+                    break
+        if b is None:                                                     # 3. pierwsza granica za 'cel' (do 2 x cel)
+            for i in range(start + cel + 1, min(len(linia) - 1, start + 2 * cel)):
+                if granica(i):
+                    b = i
+                    break
+        if b is None:                                                     # 4. ostatnia pojedyncza spacja w oknie
+            for i in range(start + cel, start + min_kawalek, -1):
+                if linia[i] == " " and linia[i - 1] != " " and linia[i + 1] != " ":
+                    b = i
+                    break
+        if b is None:
+            break
+        kawalki.append(linia[start:b])
+        start = b + 1
+    kawalki.append(linia[start:])
+    return kawalki
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
@@ -220,6 +269,10 @@ def main():
                     help="NIE skracaj przeciagniec w tekscie wysylanym do DeepL (domyslnie ciagi 5+ tego samego znaku - litery, ! ? . - sa "
                          "skracane do 4, co zapobiega petlom DeepL; oryginaly sa zawsze nietkniete)")
     ap.add_argument("--skracaj-przeciagniecia", action="store_true", help=argparse.SUPPRESS)   # stara flaga: skracanie jest teraz domyslne
+    ap.add_argument("--bez-dzielenia", action="store_true",
+                    help="NIE dziel bardzo dlugich linii na kawalki (domyslnie linie dluzsze niz --prog-linii sa dzielone na granicach zdan, "
+                         "a rozdziel sklada je z powrotem po tlumaczeniu; DeepL traci jakosc na bardzo dlugich liniach)")
+    ap.add_argument("--prog-linii", type=int, default=4000, help="od ilu znakow linia jest dzielona na kawalki (domyslnie 4000)")
     a = ap.parse_args()
 
     d = os.path.normpath(a.katalog)
@@ -262,6 +315,7 @@ def main():
     stare_czesci = [f for f in cands if czesc_z(f)]
     names = [f for f in cands if f not in stare_czesci]
     items, duze, ostrz_kod, kodowania, skrocone = [], [], [], {}, {}
+    dzielone_linie = {}
     for n in names:
         txt, enc = czytaj_plik(os.path.join(d, n))
         kodowania[enc] = kodowania.get(enc, 0) + 1
@@ -279,6 +333,16 @@ def main():
             txt, ile = skroc_przeciagniecia(txt)
             if ile:
                 skrocone[n] = ile
+        if not a.bez_dzielenia:                       # bardzo dlugie linie -> kawalki na granicach zdan (spacja -> nowa linia, rozmiar bez zmian)
+            dz, nowe_l = [], []
+            for j, l in enumerate(txt.split("\n")[:-1]):
+                ch = dziel_dluga_linie(l, a.prog_linii)
+                if len(ch) > 1:
+                    dz.append((j, len(ch)))
+                nowe_l.extend(ch)
+            if dz:
+                txt = "\n".join(nowe_l) + "\n"
+                dzielone_linie[n] = dz
         sz = len(txt.encode("utf-8"))
         if sz > a.limit:
             duze.append((n, txt, sz))        # duzy plik: dzielimy, nie scalamy
@@ -353,6 +417,13 @@ def main():
             for fn, fsz, pr in nazwy:
                 spis.append("    " + fn + " (" + str(fsz) + " bajtow" + ("" if pr is None else ", przerwa " + str(pr)) + ")")
         spis.append("")
+    if dzielone_linie:                      # sekcja NA KONCU spisu (starsze wersje rozdziel ja ignoruja)
+        if not podzielone:
+            spis.extend(["Pliki podzielone (nie scalane):", "    (brak)", ""])
+        spis.append("Linie dzielone (dlugie linie > %d znakow rozdzielone na kawalki; rozdziel sklada je z powrotem):" % a.prog_linii)
+        for n in sorted(dzielone_linie, key=str.lower):
+            spis.append("    %s: dzielone linie %s" % (n, ", ".join("%dx%d" % x for x in dzielone_linie[n])))
+        spis.append("")
     # Spis scalenia: oryginalne nazwy plikow w kazdym pliku scalenia
     with open(os.path.join(d, spis_name), "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(spis).rstrip("\n") + "\n")
@@ -365,6 +436,11 @@ def main():
               % (sum(skrocone.values()), len(skrocone)))
         for n, k in sorted(skrocone.items(), key=lambda x: -x[1])[:10]:
             print("   - %s: %d" % (n, k))
+    if dzielone_linie:
+        print("Dzielenie dlugich linii (> %d znakow, domyslne; --bez-dzielenia wylacza): %d linii w %d plikach; rozdziel zlozy je z powrotem po tlumaczeniu"
+              % (a.prog_linii, sum(len(v) for v in dzielone_linie.values()), len(dzielone_linie)))
+        for n, v in sorted(dzielone_linie.items(), key=lambda x: -len(x[1]))[:10]:
+            print("   - %s: %d linii (kawalkow: %d)" % (n, len(v), sum(k for _, k in v)))
     for w in ostrz_kod:
         print("UWAGA (kodowanie):", w)
 

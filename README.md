@@ -65,6 +65,10 @@ Niektóre stare pliki mają cudzysłowy i apostrofy zapisane osobnymi bajtami (`
 
 `litert-rozdziel/poprawki_deepl.txt` (`błędna => poprawna`) zawiera systematyczne błędy DeepL (np. `polizaj` → `poliż`). `rozdziel` stosuje je automatycznie przy zapisie wyników, a `rozdziel KATALOG --tylko-poprawki [--sucho]` poprawia istniejące tłumaczenia. Kontrola wypisuje też informacyjny raport „czkawki" (podwojone słowa, powtórzone linie).
 
+## Dzielenie długich linii
+
+DeepL traci jakość na bardzo długich liniach (podwojone słowa, rozsypane „się"). `litert` domyślnie dzieli linie dłuższe niż 4000 znaków na kawałki na granicach zdań (`--bez-dzielenia` wyłącza), a `litert-rozdziel` składa je z powrotem po tłumaczeniu. Istniejące tłumaczenia naprawia `litert-rozdziel/scripts/dlugie_linie.py KATALOG --przygotuj | --zastosuj`.
+
 ## Duplikaty
 
 `litert/scripts/duplikaty.py KATALOG [--wzorzec @] [--prog 0.6] [--do-kosza]` wskazuje pliki z wzorcem w nazwie (domyślnie `@`), których treść w co najmniej 60% jest w innym pliku bez wzorca. Domyślnie tylko raport, a z `--do-kosza` takie pliki trafiają do Kosza (Windows). Po usunięciu duplikatów trzeba powtórzyć scalanie.

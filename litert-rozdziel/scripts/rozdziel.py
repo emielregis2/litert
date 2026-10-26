@@ -37,6 +37,7 @@ except Exception:
 
 KODOWANIE = {}   # sciezka -> uzyte kodowanie
 PRZERWY = {}     # nazwa czesci -> liczba pustych linii miedzy ta czescia a poprzednia (ze spisu)
+PLAN_DZIEL = {}  # nazwa oryginalu -> [(indeks linii oryginalu, liczba kawalkow)] - dlugie linie podzielone przy scalaniu (ze spisu)
 POLSKIE = re.compile("[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]")
 # typowe slady UTF-8 odczytanego jako cp1250/cp1252 oraz znak zastepczy
 ZEPSUTE = re.compile("Ä…|Ä™|Ä‡|Å‚|Å„|Å›|Åº|Å¼|Ăł|Ã³|\ufffd")
@@ -91,8 +92,16 @@ def parsuj_spis(path):
     """Zwraca (kolejnosc plikow scalenia, {nr: nazwa oryginalu}, {plik scalenia: [nr,...]},
     [(oryginal duzego pliku, [nazwy czesci w kolejnosci])])"""
     pliki, nazwy, w_pliku, cur = [], {}, {}, None
-    podzielone, sekcja_podz = [], False
+    podzielone, sekcja_podz, sekcja_dz = [], False, False
     for line in czytaj(path).split("\n"):
+        if line.startswith("Linie dzielone"):          # sekcja na koncu spisu: dlugie linie podzielone przy scalaniu
+            sekcja_dz, sekcja_podz = True, False
+            continue
+        if sekcja_dz:
+            m = re.match(r"^\s+(.+?\.txt): dzielone linie (.+?)\s*$", line)
+            if m:
+                PLAN_DZIEL[m.group(1)] = [tuple(int(x) for x in p.split("x")) for p in m.group(2).split(", ")]
+            continue
         if line.startswith("Pliki podzielone"):
             sekcja_podz = True
             continue
@@ -115,6 +124,53 @@ def parsuj_spis(path):
             pliki.append(cur)
             w_pliku[cur] = []
     return pliki, nazwy, w_pliku, podzielone
+
+
+def _sklej_kawalki(czesci):
+    """Sklada kawalki jednej dlugiej linii pojedyncza spacja; zachowuje spacje na poczatku pierwszego i na koncu ostatniego kawalka
+    (wciecie akapitu, spacja na koncu linii), a w miejscach laczenia usuwa nadmiarowe."""
+    wynik = czesci[0].rstrip()
+    for x in czesci[1:-1]:
+        wynik += " " + x.strip()
+    if len(czesci) > 1:
+        wynik += " " + czesci[-1].lstrip()
+    return wynik
+
+
+def zloz_dzielone(tekst, orig, d, problemy, etykieta):
+    """Sklada z powrotem dlugie linie, ktore scal.py podzielil na kawalki (plan ze spisu). Skladamy TYLKO wtedy, gdy uklad linii (puste/niepuste)
+    wyniku dokladnie zgadza sie z oczekiwanym; w przeciwnym razie nic nie zmieniamy i zglaszamy problem (DeepL mogl scalic lub pominac linie)."""
+    plan = PLAN_DZIEL.get(orig)
+    if not plan:
+        return tekst
+    op = next((x for x in (os.path.join(d, orig), os.path.join(d, "org", orig)) if os.path.isfile(x)), None)
+    if not op:
+        problemy.append("%s: NIE zlozono dlugich linii (brak oryginalu %s do sprawdzenia ukladu)" % (etykieta, orig))
+        return tekst
+    raw = open(op, "rb").read()
+    try:
+        o = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        o = raw.decode("cp1252", errors="replace")
+    lo = o.replace("\r\n", "\n").strip("\n").split("\n")
+    k_dla = dict(plan)
+    oczek = []
+    for j, l in enumerate(lo):
+        oczek += [bool(l.strip())] * k_dla.get(j, 1)
+    wyn = tekst.split("\n")
+    if wyn and wyn[-1] == "":
+        wyn = wyn[:-1]
+    if [bool(x.strip()) for x in wyn] != oczek:
+        problemy.append("%s: NIE zlozono dlugich linii (podzielonych przy scalaniu): uklad linii wyniku (%d) nie zgadza sie z oczekiwanym (%d) - DeepL mogl scalic lub pominac linie"
+                        % (etykieta, len(wyn), len(oczek)))
+        return tekst
+    nowe, i = [], 0
+    for j in range(len(lo)):
+        k = k_dla.get(j, 1)
+        nowe.append(wyn[i] if k == 1 else _sklej_kawalki(wyn[i:i + k]))
+        i += k
+    print("   zlozono dlugie linie: %s (%d linii z %d kawalkow)" % (etykieta, len(plan), sum(k for _, k in plan)))
+    return "\n".join(nowe) + "\n"
 
 
 def uzupelnij_z_zip(d, oczekiwane):
@@ -662,6 +718,7 @@ def main():
             if os.path.exists(out_path) and not a.nadpisz:
                 problemy.append("POMINIETO (plik juz istnieje, uzyj --nadpisz): " + out_name)
                 continue
+            tekst = zloz_dzielone(tekst, nazwy[nr], d, problemy, out_name)
             tekst, _zl = zastosuj_poprawki(tekst, reguly)
             if _zl:
                 zam_licznik.update(_zl)
@@ -694,6 +751,7 @@ def main():
                 tekst += "\n" * PRZERWY[cn] + kw.strip("\n") + "\n"
         else:                                       # starszy spis (bez informacji o przerwach): laczenie bez zmian
             tekst = "".join(k if k.endswith("\n") else k + "\n" for k in kawalki)
+        tekst = zloz_dzielone(tekst, orig, d, problemy, out_name)
         tekst, _zl = zastosuj_poprawki(tekst, reguly)
         if _zl:
             zam_licznik.update(_zl)
