@@ -298,6 +298,56 @@ def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
     return wynik, "".join(sep)
 
 
+def tnij_po_kropce(tekst, dl=1000, okno=1000, min_ogon=150):
+    """Tnie 'tekst' na kawalki ok. 'dl' znakow: po osiagnieciu 'dl' znakow szuka NAJBLIZSZEJ kropki konczacej zdanie (kropka, ewentualnie zamykajacy
+    cudzyslow/nawias, pojedyncza spacja i poczatek nastepnego zdania; nie tniemy na wielokropku) i tnie w tej spacji (spacja jest usuwana; polaczenie
+    kawalkow pojedyncza spacja odtwarza tekst co do znaku). Gdy w nastepnych 'okno' znakach nie ma kropki, uzywa '!' lub '?', a w ostatecznosci
+    dowolnej pojedynczej spacji. Ogon krotszy niz 'min_ogon' znakow zostaje przy ostatnim kawalku."""
+    n = len(tekst)
+    if dl <= 0 or n <= dl:
+        return [tekst]
+
+    def zdanie(i, znaki):
+        if i < 2 or i + 1 >= n or tekst[i] != " " or tekst[i - 1] == " " or tekst[i + 1] == " " or tekst[i + 1] == ".":
+            return False
+        p = tekst[i - 1]
+        return p in znaki or (p in "\"'\u201d\u2019)" and tekst[i - 2] in znaki)
+    kawalki, start = [], 0
+    while n - start > dl:
+        koniec = min(n - 1, start + dl + okno)
+        b = None
+        for znaki in (".", "!?"):
+            for i in range(start + dl, koniec):
+                if zdanie(i, znaki) and n - (i + 1) >= min_ogon:
+                    b = i
+                    break
+            if b is not None:
+                break
+        if b is None:
+            for i in range(start + dl, koniec):
+                if tekst[i] == " " and tekst[i - 1] != " " and tekst[i + 1] != " " and n - (i + 1) >= min_ogon:
+                    b = i
+                    break
+        if b is None:
+            break
+        kawalki.append(tekst[start:b])
+        start = b + 1
+    kawalki.append(tekst[start:])
+    return kawalki
+
+
+def rozbij_po_kropce(ch, sp, dl):
+    """Stosuje tnij_po_kropce do kazdego kawalka z listy 'ch' (z odstepami 'sp': 's' = spacja, 'q' = bez niczego) i zwraca (kawalki, odstepy)."""
+    nowe, nsp = [], []
+    for i, p in enumerate(ch):
+        czesci = tnij_po_kropce(p, dl)
+        nowe.extend(czesci)
+        nsp.extend(["s"] * (len(czesci) - 1))
+        if i < len(ch) - 1:
+            nsp.append(sp[i])
+    return nowe, "".join(nsp)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
@@ -316,6 +366,8 @@ def main():
                     help="linie tnij w KAZDEJ zmianie mowcy: miedzy dwoma cudzyslowami (\"\" lub typograficzne) i w srodkowej spacji w \" \" - kazda linia, niezaleznie od dlugosci (--prog-tury), a nie tylko dlugie w preferowanych miejscach")
     ap.add_argument("--min-odcinek", type=int, default=0, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (domyslnie 0 = ciecie w kazdej granicy)")
     ap.add_argument("--prog-tury", type=int, default=0, help="z --dziel-tury: od jakiej dlugosci linii ciac na zmianach mowcy (domyslnie 0 = kazda linia)")
+    ap.add_argument("--ciecie-po", type=int, default=0,
+                    help="po osiagnieciu tylu znakow tnij linie (lub odcinek) na NAJBLIZSZEJ kropce konczacej zdanie (np. 1000); 0 = wylaczone; dziala razem z --dziel-tury lub osobno")
     a = ap.parse_args()
 
     d = os.path.normpath(a.katalog)
@@ -384,6 +436,8 @@ def main():
                 else:
                     ch = dziel_dluga_linie(l, a.prog_linii)
                     sp = "s" * (len(ch) - 1)
+                if a.ciecie_po:
+                    ch, sp = rozbij_po_kropce(ch, sp, a.ciecie_po)
                 if len(ch) > 1:
                     dz.append((j, len(ch)))
                     if "q" in sp:

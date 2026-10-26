@@ -107,6 +107,56 @@ def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
     return wynik, "".join(sep)
 
 
+def tnij_po_kropce(tekst, dl=1000, okno=1000, min_ogon=150):
+    """Tnie 'tekst' na kawalki ok. 'dl' znakow: po osiagnieciu 'dl' znakow szuka NAJBLIZSZEJ kropki konczacej zdanie (kropka, ewentualnie zamykajacy
+    cudzyslow/nawias, pojedyncza spacja i poczatek nastepnego zdania; nie tniemy na wielokropku) i tnie w tej spacji (spacja jest usuwana; polaczenie
+    kawalkow pojedyncza spacja odtwarza tekst co do znaku). Gdy w nastepnych 'okno' znakach nie ma kropki, uzywa '!' lub '?', a w ostatecznosci
+    dowolnej pojedynczej spacji. Ogon krotszy niz 'min_ogon' znakow zostaje przy ostatnim kawalku."""
+    n = len(tekst)
+    if dl <= 0 or n <= dl:
+        return [tekst]
+
+    def zdanie(i, znaki):
+        if i < 2 or i + 1 >= n or tekst[i] != " " or tekst[i - 1] == " " or tekst[i + 1] == " " or tekst[i + 1] == ".":
+            return False
+        p = tekst[i - 1]
+        return p in znaki or (p in "\"'\u201d\u2019)" and tekst[i - 2] in znaki)
+    kawalki, start = [], 0
+    while n - start > dl:
+        koniec = min(n - 1, start + dl + okno)
+        b = None
+        for znaki in (".", "!?"):
+            for i in range(start + dl, koniec):
+                if zdanie(i, znaki) and n - (i + 1) >= min_ogon:
+                    b = i
+                    break
+            if b is not None:
+                break
+        if b is None:
+            for i in range(start + dl, koniec):
+                if tekst[i] == " " and tekst[i - 1] != " " and tekst[i + 1] != " " and n - (i + 1) >= min_ogon:
+                    b = i
+                    break
+        if b is None:
+            break
+        kawalki.append(tekst[start:b])
+        start = b + 1
+    kawalki.append(tekst[start:])
+    return kawalki
+
+
+def rozbij_po_kropce(ch, sp, dl):
+    """Stosuje tnij_po_kropce do kazdego kawalka z listy 'ch' (z odstepami 'sp': 's' = spacja, 'q' = bez niczego) i zwraca (kawalki, odstepy)."""
+    nowe, nsp = [], []
+    for i, p in enumerate(ch):
+        czesci = tnij_po_kropce(p, dl)
+        nowe.extend(czesci)
+        nsp.extend(["s"] * (len(czesci) - 1))
+        if i < len(ch) - 1:
+            nsp.append(sp[i])
+    return nowe, "".join(nsp)
+
+
 def skroc(l):
     return re.sub(r"([^\W\d_]|[!?.])\1{4,}", lambda m: m.group(1) * 4, l)
 
@@ -120,7 +170,7 @@ def czytaj_linie(p):
     return t.replace("\r\n", "\n").strip("\n").split("\n")
 
 
-def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0):
+def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0, ciecie=0):
     """Zwraca (lista plikow do naprawy: dict z kluczami baza, Lo, dlugie [(j, kawalki)], idx_wyniku {j: indeks linii wyniku}), lista pominietych)."""
     zrodlo = os.path.join(d, "org") if os.path.isdir(os.path.join(d, "org")) else d
     pliki, pominiete = [], []
@@ -142,6 +192,8 @@ def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0):
                 else:
                     kaw = dziel_dluga_linie(skroc(l), prog)
                     sp = "s" * (len(kaw) - 1)
+                if ciecie:
+                    kaw, sp = rozbij_po_kropce(kaw, sp, ciecie)
                 dlugie.append((j, kaw, sp))
         if not dlugie:
             continue
@@ -169,6 +221,7 @@ def main():
     ap.add_argument("--prog", type=int, default=4000)
     ap.add_argument("--dziel-tury", action="store_true", help="tnij w KAZDYM miejscu zmiany mowcy (jak w scal.py --dziel-tury); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
     ap.add_argument("--min-odcinek", type=int, default=0, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (domyslnie 0 = ciecie w kazdej granicy)")
+    ap.add_argument("--ciecie-po", type=int, default=0, help="po osiagnieciu tylu znakow tnij na najblizszej kropce (jak w scal.py --ciecie-po); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
     ap.add_argument("--sucho", action="store_true", help="z --zastosuj: tylko sprawdz, nic nie zapisuj")
     a = ap.parse_args()
     try:
@@ -180,7 +233,7 @@ def main():
         print("Uzycie: dlugie_linie.py KATALOG --przygotuj | --zastosuj [--pliki \"A;B\"] [--prog 4000] [--sucho]")
         return 1
     nazwy = {x.strip().lower() for x in a.pliki.split(";") if x.strip()}
-    pliki, pominiete = zbierz_plan(d, a.prog, nazwy, a.dziel_tury, a.min_odcinek)
+    pliki, pominiete = zbierz_plan(d, a.prog, nazwy, a.dziel_tury, a.min_odcinek, a.ciecie_po)
     for b, powod in pominiete:
         print("POMINIETO %s: %s" % (b, powod))
     for nz in sorted(nazwy - {p["baza"].lower() for p in pliki} - {b.lower() for b, _ in pominiete}):
