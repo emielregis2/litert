@@ -389,8 +389,8 @@ def main():
     ap.add_argument("--prog-tury", type=int, default=0, help="z --dziel-tury: od jakiej dlugosci linii ciac na zmianach mowcy (domyslnie 0 = kazda linia)")
     ap.add_argument("--ciecie-po", type=int, default=0,
                     help="po osiagnieciu tylu znakow tnij linie (lub odcinek) na NAJBLIZSZEJ kropce konczacej zdanie (np. 1000); 0 = wylaczone; dziala razem z --dziel-tury lub osobno")
-    ap.add_argument("--limit-linii", type=int, default=0,
-                    help="TWARDY limit dlugosci linii: zadna linia (odcinek) nie ma wiecej niz tyle znakow (np. 800); tnie na OSTATNIEJ kropce przed limitem (potem ! ?, ,;:, spacja); 0 = wylaczone; ma pierwszenstwo przed --ciecie-po")
+    ap.add_argument("--limit-linii", type=int, default=800,
+                    help="TWARDY limit dlugosci linii (domyslnie 800): zadna linia (odcinek) nie ma wiecej niz tyle znakow; tnie na OSTATNIEJ kropce przed limitem (potem ! ?, ,;:, spacja); 0 = wylaczone (wtedy dzialaja --prog-linii i --ciecie-po); --bez-dzielenia wylacza wszystko")
     a = ap.parse_args()
 
     d = os.path.normpath(a.katalog)
@@ -550,7 +550,8 @@ def main():
     if dzielone_linie:                      # sekcja NA KONCU spisu (starsze wersje rozdziel ja ignoruja)
         if not podzielone:
             spis.extend(["Pliki podzielone (nie scalane):", "    (brak)", ""])
-        spis.append("Linie dzielone (dlugie linie > %d znakow rozdzielone na kawalki; rozdziel sklada je z powrotem):" % a.prog_linii)
+        spis.append(("Linie dzielone (twardy limit %d znakow; linie rozdzielone na kawalki; rozdziel sklada je z powrotem):" % a.limit_linii) if a.limit_linii
+                    else ("Linie dzielone (dlugie linie > %d znakow rozdzielone na kawalki; rozdziel sklada je z powrotem):" % a.prog_linii))
         for n in sorted(dzielone_linie, key=str.lower):
             spis.append("    %s: dzielone linie %s" % (n, ", ".join("%dx%d" % x for x in dzielone_linie[n])))
             if n in odstepy_linii:                  # sposob laczenia kawalkow: s = spacja, q = bez niczego (ciecie miedzy cudzyslowami)
@@ -569,8 +570,8 @@ def main():
         for n, k in sorted(skrocone.items(), key=lambda x: -x[1])[:10]:
             print("   - %s: %d" % (n, k))
     if dzielone_linie:
-        print("Dzielenie dlugich linii (> %d znakow, domyslne; --bez-dzielenia wylacza): %d linii w %d plikach; rozdziel zlozy je z powrotem po tlumaczeniu"
-              % (a.prog_linii, sum(len(v) for v in dzielone_linie.values()), len(dzielone_linie)))
+        print("Dzielenie linii (%s, domyslne; --bez-dzielenia wylacza): %d linii w %d plikach; rozdziel zlozy je z powrotem po tlumaczeniu"
+              % (("twardy limit %d znakow" % a.limit_linii) if a.limit_linii else ("dlugie linie > %d znakow" % a.prog_linii), sum(len(v) for v in dzielone_linie.values()), len(dzielone_linie)))
         for n, v in sorted(dzielone_linie.items(), key=lambda x: -len(x[1]))[:10]:
             print("   - %s: %d linii (kawalkow: %d)" % (n, len(v), sum(k for _, k in v)))
     for w in ostrz_kod:

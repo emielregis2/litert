@@ -245,7 +245,7 @@ def main():
     ap.add_argument("--dziel-tury", action="store_true", help="tnij w KAZDYM miejscu zmiany mowcy (jak w scal.py --dziel-tury); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
     ap.add_argument("--min-odcinek", type=int, default=0, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (domyslnie 0 = ciecie w kazdej granicy)")
     ap.add_argument("--ciecie-po", type=int, default=0, help="po osiagnieciu tylu znakow tnij na najblizszej kropce (jak w scal.py --ciecie-po); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
-    ap.add_argument("--limit-linii", type=int, default=0, help="twardy limit dlugosci kawalka w znakach (jak w scal.py --limit-linii); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
+    ap.add_argument("--limit-linii", type=int, default=800, help="twardy limit dlugosci kawalka w znakach (domyslnie 800, jak w scal.py --limit-linii; 0 = wylaczone); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
     ap.add_argument("--sucho", action="store_true", help="z --zastosuj: tylko sprawdz, nic nie zapisuj")
     a = ap.parse_args()
     try:
