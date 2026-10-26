@@ -39,6 +39,8 @@ KODOWANIE = {}   # sciezka -> uzyte kodowanie
 PRZERWY = {}     # nazwa czesci -> liczba pustych linii miedzy ta czescia a poprzednia (ze spisu)
 PLAN_DZIEL = {}  # nazwa oryginalu -> [(indeks linii oryginalu, liczba kawalkow)] - dlugie linie podzielone przy scalaniu (ze spisu)
 PLAN_ODSTEPY = {}  # nazwa oryginalu -> {indeks linii: napis 's'/'q' dlugosci k-1} - sposob laczenia kawalkow (s = spacja, q = bez niczego)
+WIRT = {}        # nr znacznika -> (nazwa duzego pliku, nr czesci, liczba czesci, przerwa) - czesci duzych plikow pakowane do serii razem z malymi (ze spisu)
+WIRT_CZESCI = {}  # nazwa duzego pliku -> [nr znacznikow jego czesci w kolejnosci]
 POLSKIE = re.compile("[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]")
 # typowe slady UTF-8 odczytanego jako cp1250/cp1252 oraz znak zastepczy
 ZEPSUTE = re.compile("Ä…|Ä™|Ä‡|Å‚|Å„|Å›|Åº|Å¼|Ăł|Ã³|\ufffd")
@@ -121,12 +123,20 @@ def parsuj_spis(path):
         m = re.match(r"^\s+(\d+)\.\s+(.+?)\s*$", line)
         if m and cur:
             nr = int(m.group(1))
-            nazwy[nr] = m.group(2)
+            nm = m.group(2)
+            mp = re.match(r"^(.+?\.txt) \(czesc (\d+) z (\d+)(?:, przerwa (\d+))?\)$", nm)
+            if mp:                                      # czesc duzego pliku w serii: osobny numer znacznika, skladana w main()
+                nm = mp.group(1)
+                WIRT[nr] = (nm, int(mp.group(2)), int(mp.group(3)), int(mp.group(4)) if mp.group(4) is not None else 0)
+            nazwy[nr] = nm
             w_pliku[cur].append(nr)
         elif line.strip() and not line.startswith(" "):
             cur = line.strip()
             pliki.append(cur)
             w_pliku[cur] = []
+    WIRT_CZESCI.clear()
+    for nr, (nm, k, _m, _p) in sorted(WIRT.items(), key=lambda kv: (kv[1][0].lower(), kv[1][1])):
+        WIRT_CZESCI.setdefault(nm, []).append(nr)
     return pliki, nazwy, w_pliku, podzielone
 
 
@@ -357,9 +367,14 @@ def _raport_czkawki(nazwa, tekst, op):
         print("INFO: CZKAWKA: %s: to samo slowo 4 razy z rzedu: %d miejsc ponad oryginal" % (nazwa, len(x4.findall(tekst)) - len(x4.findall(o))))
 
 
+def _etyk(nazwy, nr):
+    """Nazwa pliku ze spisu do komunikatow (dla czesci duzego pliku z numerem czesci)."""
+    return "%s, czesc %d z %d" % (nazwy[nr], WIRT[nr][1], WIRT[nr][2]) if nr in WIRT else nazwy[nr]
+
+
 def oczekiwane_pliki(nazwy, pliki, podzielone):
     """Zwraca (oryginaly, wyniki, pliki techniczne) na podstawie spisu."""
-    oryginaly = [nazwy[nr] for nr in sorted(nazwy)] + [o for o, _ in podzielone]
+    oryginaly = [nazwy[nr] for nr in sorted(nazwy) if nr not in WIRT] + sorted(WIRT_CZESCI, key=str.lower) + [o for o, _ in podzielone]
     wyniki = [o[:-4] + " pl.txt" for o in oryginaly]
     czesci = [c for _, cz in podzielone for c in cz]
     tech = list(pliki) + [pl[:-4] + " pl.txt" for pl in pliki] + czesci + [c[:-4] + " pl.txt" for c in czesci]
@@ -750,6 +765,7 @@ def main():
         oczek_pl = [pl[:-4] + " pl.txt" for pl in pliki] + [c[:-4] + " pl.txt" for _, cz in podzielone for c in cz]
         uzupelnij_z_zip(d, oczek_pl)
     problemy, zapisane = [], 0
+    TEKSTY_CZESCI = {}                         # nr czesci duzego pliku -> przetlumaczony tekst (skladane po przejrzeniu calej serii)
     naprawy = []                                                   # usuniete znaki U+FFFD (do raportu)
     raport_nazwa = os.path.basename(d) + "_raport_naprawy.txt"
 
@@ -778,7 +794,7 @@ def main():
         oczek, znal = w_pliku[plik], set(czesci)
         for nr in oczek:
             if nr not in znal:
-                problemy.append("%s: BRAK znacznika %d (%s) - tego pliku nie rozdzielono" % (pl_name, nr, nazwy[nr]))
+                problemy.append("%s: BRAK znacznika %d (%s) - tego pliku nie rozdzielono" % (pl_name, nr, _etyk(nazwy, nr)))
         for nr in sorted(znal - set(oczek)):
             problemy.append("%s: nadmiarowy znacznik %d (nie ma go w spisie dla tego pliku)" % (pl_name, nr))
         # Gdy brakuje znacznika, tekst tego pliku skleilby sie z POPRZEDNIM - jego nie zapisujemy
@@ -788,7 +804,10 @@ def main():
                 continue
             if nr in podejrzane:
                 problemy.append("%s: %s (%d) NIE zapisano - nastepny plik nie ma znacznika, tekst moglby sie skleic"
-                                % (pl_name, nazwy[nr], nr))
+                                % (pl_name, _etyk(nazwy, nr), nr))
+                continue
+            if nr in WIRT:                     # czesc duzego pliku: skladamy dopiero, gdy sa WSZYSTKIE czesci serii
+                TEKSTY_CZESCI[nr] = "\n".join(czesci[nr]).strip("\n") + "\n"
                 continue
             tekst = "\n".join(czesci[nr]).strip("\n") + "\n"
             out_name = nazwy[nr][:-4] + " pl.txt"
@@ -805,7 +824,35 @@ def main():
                 fh.write(tekst)
             zapisane += 1
             print("OK", out_name, len(tekst.encode("utf-8")), "bajtow")
-    # Skladanie przetlumaczonych czesci duzych plikow: Nazwa_1 pl.txt + Nazwa_2 pl.txt + ... -> Nazwa pl.txt
+    # Skladanie duzych plikow z czesci rozrzuconych po seriach Katalog_all_N pl.txt: tylko gdy sa WSZYSTKIE czesci (inaczej nic nie zapisujemy)
+    for orig, nrs in sorted(WIRT_CZESCI.items(), key=lambda kv: kv[0].lower()):
+        out_name = orig[:-4] + " pl.txt"
+        out_path = os.path.join(d, out_name)
+        m_ = WIRT[nrs[0]][2]
+        if len(nrs) != m_ or [WIRT[x][1] for x in nrs] != list(range(1, m_ + 1)):
+            problemy.append("%s: spis jest niekompletny (czesci %s z %d) - nie zlozono" % (out_name, [WIRT[x][1] for x in nrs], m_))
+            continue
+        brak = [x for x in nrs if x not in TEKSTY_CZESCI]
+        if brak:
+            problemy.append("%s: nie zlozono - BRAK czesci %s z %d (numery znacznikow %s); sprawdz, czy wszystkie tlumaczenia serii _all_N pl.txt sa zapisane"
+                            % (out_name, ", ".join(str(WIRT[x][1]) for x in brak), m_, ", ".join(str(x) for x in brak)))
+            continue
+        if os.path.exists(out_path) and not a.nadpisz:
+            problemy.append("POMINIETO (plik juz istnieje, uzyj --nadpisz): " + out_name)
+            continue
+        tekst = TEKSTY_CZESCI[nrs[0]].strip("\n") + "\n"
+        for x in nrs[1:]:
+            tekst += "\n" * WIRT[x][3] + TEKSTY_CZESCI[x].strip("\n") + "\n"
+        tekst = zloz_dzielone(tekst, orig, d, problemy, out_name)
+        tekst, _zl = zastosuj_poprawki(tekst, reguly)
+        if _zl:
+            zam_licznik.update(_zl)
+            zam_plikow[0] += 1
+        with open(out_path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(tekst)
+        zapisane += 1
+        print("OK (zlozono z %d czesci z serii tlumaczen)" % len(nrs), out_name, len(tekst.encode("utf-8")), "bajtow")
+    # Skladanie przetlumaczonych czesci duzych plikow (STARY format): Nazwa_1 pl.txt + Nazwa_2 pl.txt + ... -> Nazwa pl.txt
     for orig, czesci_nazwy in podzielone:
         out_name = orig[:-4] + " pl.txt"
         out_path = os.path.join(d, out_name)

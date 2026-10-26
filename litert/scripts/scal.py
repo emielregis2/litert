@@ -391,6 +391,9 @@ def main():
                     help="po osiagnieciu tylu znakow tnij linie (lub odcinek) na NAJBLIZSZEJ kropce konczacej zdanie (np. 1000); 0 = wylaczone; dziala razem z --dziel-tury lub osobno")
     ap.add_argument("--limit-linii", type=int, default=800,
                     help="TWARDY limit dlugosci linii (domyslnie 800): zadna linia (odcinek) nie ma wiecej niz tyle znakow; tnie na OSTATNIEJ kropce przed limitem (potem ! ?, ,;:, spacja); 0 = wylaczone (wtedy dzialaja --prog-linii i --ciecie-po); --bez-dzielenia wylacza wszystko")
+    ap.add_argument("--czesci-osobno", action="store_true",
+                    help="stary format: czesci duzych plikow (> limit) zapisuj jako osobne pliki NazwaOryginalu_N.txt poza seria Katalog_all_N "
+                         "(domyslnie czesci sa pakowane do serii Katalog_all_N RAZEM z malymi plikami i wgrywasz do DeepL jedna serie)")
     a = ap.parse_args()
 
     d = os.path.normpath(a.katalog)
@@ -489,26 +492,41 @@ def main():
             disp = disp.replace(ch, " ")
         znacznik = "=====[[%d|%s]]=====\n\n" % (num, " ".join(disp.split()))
         txt2 = znacznik + txt
-        nowe.append((n, txt2, len(txt2.encode("utf-8")), num))
+        nowe.append((n, txt2, len(txt2.encode("utf-8")), num, 0, None))      # (nazwa, tekst, rozmiar, id znacznika, nr czesci (0 = caly plik), (liczba czesci, przerwa))
     items = nowe
 
-    # Dzielenie duzych plikow na czesci NazwaOryginalu_1.txt, _2.txt ...
-    podzielone = []
-    for n, txt, sz in duze:
+    # Duze pliki (> limit): dzielone linia po linii na czesci. DOMYSLNIE czesci to "wirtualne pliki" (wlasny numer i znacznik
+    # =====[[N|Nazwa part K of M]]=====), pakowane do serii Katalog_all_N RAZEM z malymi plikami (jedna seria do wgrania do DeepL;
+    # rozdziel sklada duzy plik z czesci rozrzuconych po tlumaczeniach serii). --czesci-osobno: stary format (osobne pliki NazwaOryginalu_N.txt).
+    podzielone, pliki_do_tl = [], []
+    nast_id = len(items) + 1
+    for n, txt, sz in sorted(duze, key=lambda x: x[0].lower()):
         stem = n[:-4]
         for f in list(stare_czesci):          # kasujemy tylko stare czesci TEGO pliku i tylko gdy jest duzy
             m = re.match(r"^(.*)_(\d+)\.txt$", f, re.I)
             if m.group(1).lower() == stem.lower():
                 os.remove(os.path.join(d, f)); stare_czesci.remove(f)
-        czesci, przerwy = dziel(txt, a.limit)
-        nazwy = []
-        for i, c in enumerate(czesci, 1):
-            fn = "%s_%d.txt" % (stem, i)
-            with open(os.path.join(d, fn), "w", encoding="utf-8", newline="\n") as fh:
-                fh.write(c)
-            nazwy.append((fn, len(c.encode("utf-8")), przerwy[i - 2] if i >= 2 else None))
-            print("   [podzial]", fn, len(c.encode("utf-8")), "bajtow")
-        podzielone.append((n, sz, nazwy))
+        if a.czesci_osobno:
+            czesci, przerwy = dziel(txt, a.limit)
+            nazwy = []
+            for i, c in enumerate(czesci, 1):
+                fn = "%s_%d.txt" % (stem, i)
+                with open(os.path.join(d, fn), "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(c)
+                nazwy.append((fn, len(c.encode("utf-8")), przerwy[i - 2] if i >= 2 else None))
+                pliki_do_tl.append(fn)
+                print("   [podzial]", fn, len(c.encode("utf-8")), "bajtow")
+            podzielone.append((n, sz, nazwy))
+        else:
+            czesci, przerwy = dziel(txt, a.limit - 400)        # rezerwa na znacznik czesci
+            disp = stem
+            for ch in "[]|":
+                disp = disp.replace(ch, " ")
+            disp = " ".join(disp.split())[:80]
+            for k, c in enumerate(czesci, 1):
+                txt2 = "=====[[%d|%s part %d of %d]]=====\n\n" % (nast_id, disp, k, len(czesci)) + c
+                items.append((n, txt2, len(txt2.encode("utf-8")), nast_id, k, (len(czesci), przerwy[k - 2] if k >= 2 else None)))
+                nast_id += 1
     if stare_czesci:
         print("UWAGA: pominalem w scalaniu prawdopodobne czesci (oryginal nie jest juz duzy):", ", ".join(stare_czesci))
 
@@ -520,7 +538,7 @@ def main():
     # Koszt pliku = rozmiar + 2 bajty separatora, pojemnosc = limit + 2 (separator jest tylko MIEDZY plikami).
     groups = pakuj(items, a.limit)
     for g in groups:
-        g.sort(key=lambda x: x[0].lower())          # wewnatrz pliku scalenia: kolejnosc alfabetyczna
+        g.sort(key=lambda x: (x[0].lower(), x[4]))          # wewnatrz pliku scalenia: kolejnosc alfabetyczna (czesci duzego pliku wg numeru)
     groups.sort(key=lambda g: g[0][0].lower())      # numeracja plikow scalenia wg pierwszej nazwy alfabetycznie
     for g in groups:
         tot = sum(x[2] for x in g) + 2 * (len(g) - 1)
@@ -535,9 +553,14 @@ def main():
             fh.write("\n\n".join(x[1] for x in g))
         print(os.path.basename(fn), os.path.getsize(fn), "bajtow")
         spis.append(os.path.basename(fn))
+        pliki_do_tl.append(os.path.basename(fn))
         for x in g:
-            print("   ", x[0], x[2])
-            spis.append("    %d. %s" % (x[3], x[0]))
+            if x[5] is None:
+                print("   ", x[0], x[2])
+                spis.append("    %d. %s" % (x[3], x[0]))
+            else:        # czesc duzego pliku: numer czesci, liczba czesci i liczba pustych linii miedzy ta czescia a poprzednia
+                print("   ", "%s (czesc %d z %d)" % (x[0], x[4], x[5][0]), x[2])
+                spis.append("    %d. %s (czesc %d z %d%s)" % (x[3], x[0], x[4], x[5][0], "" if x[5][1] is None else ", przerwa %d" % x[5][1]))
         spis.append("")
 
     if podzielone:
@@ -561,9 +584,14 @@ def main():
     with open(os.path.join(d, spis_name), "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(spis).rstrip("\n") + "\n")
     print(spis_name, "zapisany")
-    print("Pominiete (pl/_copy) nie sa wypisywane; scalono plikow:", len(items))
+    print("Pominiete (pl/_copy) nie sa wypisywane; scalono plikow:", len({x[0] for x in items}))
     print("Kodowanie wejscia: " + ", ".join("%s: %d" % (k, v) for k, v in sorted(kodowania.items())))
     print("Kodowanie wyniku: UTF-8 bez BOM, konce linii LF")
+    czesci_duzych = [x for x in items if x[5] is not None]
+    if czesci_duzych:
+        print("Duze pliki (> %d B) podzielone na czesci i spakowane do serii razem z malymi plikami: %s" % (a.limit, "; ".join(
+            "%s (%d czesci)" % (n, sum(1 for x in czesci_duzych if x[0] == n)) for n in sorted({x[0] for x in czesci_duzych}, key=str.lower))))
+    print("DO PRZETLUMACZENIA W DEEPL: %d plikow (wgraj WSZYSTKIE): %s" % (len(pliki_do_tl), ", ".join(pliki_do_tl)))
     if not a.bez_skracania:
         print("Skracanie przeciagniec (domyslne; --bez-skracania wylacza): %d ciagow w %d plikach (ciagi 5+ tego samego znaku -> 4); oryginaly nietkniete"
               % (sum(skrocone.values()), len(skrocone)))
