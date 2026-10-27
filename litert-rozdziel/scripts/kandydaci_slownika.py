@@ -1,21 +1,24 @@
 # -*- coding: utf-8 -*-
 """Odkrywanie bledow DeepL w ISTNIEJACYCH tlumaczeniach: slowa spoza polskiego slownika (skill litert-rozdziel).
 
-Przeszukuje pliki '* pl.txt' w podanych katalogach (rekurencyjnie, bez podkatalogow 'org'), liczy slowa, ktorych NIE MA w slowniku hunspell pl_PL
-(np. 'polizaj', 'gryzili'), pomija imiona (wyrazy pisane wielka litera takze w srodku zdania) i wypisuje raport uszeregowany wg czestosci, z oznaczeniem
-slow wygladajacych na tryb rozkazujacy lub czas przeszly (-aj, -ajcie, -uj, -ij, -zili), lematem (np. polizaj -> polizac) i podpowiedziami slownika.
+Przeszukuje pliki '* pl.txt' w podanych katalogach (rekurencyjnie, bez podkatalogow 'org') i szuka slow wygladajacych na tryb rozkazujacy lub czas
+przeszly (koncowki -aj, -ajcie, -uj, -ij, -zili), ktorych NIE MA w slowniku hunspell pl_PL (np. 'polizaj', 'gryzili'). Skan jest szybki (wyrazenie
+regularne w C, slownik sprawdza tylko kandydatow o liczbie wystapien >= --min); pomija imiona (wyrazy pisane wielka litera takze w srodku zdania) i
+wypisuje raport uszeregowany wg czestosci, z lematem (np. polizaj -> polizac) i podpowiedziami slownika. Flaga --wszystkie sprawdza WSZYSTKIE slowa
+spoza slownika (bardzo wolno na calym zbiorze: godziny).
 UWAGA: slownik NIE zna blednych slow typu 'istniejace slowo w zlym kontekscie' (np. 'wytryskaj', 'wylizuj' - poprawne formy niedokonane); takie bledy
 zglasza Darek. Podpowiedzi slownika dla rozkazujacych bywaja bledne ('polizaj' -> 'polizal'), wiec poprawna forme ustala sie recznie i sprawdza
 poleceniem --sprawdz.
 
 Uzycie:
-  python kandydaci_slownika.py KATALOG [KATALOG ...] [--min 3] [--min-plikow 1] [--top 300] [--sugestie 60] [--wynik kandydaci_slownika.md]
+  python kandydaci_slownika.py KATALOG [KATALOG ...] [--min 3] [--min-plikow 1] [--top 300] [--sugestie 60] [--wszystkie] [--wynik kandydaci_slownika.md]
   python kandydaci_slownika.py --sprawdz "poliz;polizaj;wyliż"       (czy formy sa w slowniku + podpowiedzi)
 Wymaga: pip install spylls. Slownik pl_PL (LibreOffice, ok. 5 MB) pobiera sam do ~/.litert/ przy pierwszym uruchomieniu (albo --slownik SCIEZKA/pl_PL)."""
 import os, re, sys, time, argparse, collections, itertools, urllib.request
 
 URL = "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/pl_PL/pl_PL.%s"
 TOK = re.compile(r"[^\W\d_]+")
+KAND = re.compile(r"(?<![^\W\d_])[^\W\d_]{2,}(?:ajcie|ajmy|aj|ujcie|uj|ijcie|ij|yjcie|yj|ziliśmy|ziliście|zili)(?![^\W\d_])")
 ROZK = ("aj", "ajcie", "ajmy", "uj", "ujcie", "ij", "ijcie", "yj", "yjcie")
 PRZESZ = re.compile(r"(?:zili|ziliśmy|ziliście)$")
 
@@ -76,6 +79,7 @@ def main():
     ap.add_argument("--top", type=int, default=300, help="ile slow w raporcie (domyslnie 300)")
     ap.add_argument("--sugestie", type=int, default=60, help="dla ilu najczestszych slow szukac podpowiedzi slownika (kazde ok. 1 s; domyslnie 60)")
     ap.add_argument("--wynik", default="kandydaci_slownika.md", help="plik raportu (Markdown); obok powstaje kandydaci_slownika_reguly.txt")
+    ap.add_argument("--wszystkie", action="store_true", help="sprawdzaj WSZYSTKIE slowa, a nie tylko formy rozkazujace i czas przeszly (bardzo wolno na calym zbiorze)")
     ap.add_argument("--slownik", default="", help="sciezka do slownika bez rozszerzenia (np. C:\\slowniki\\pl_PL)")
     ap.add_argument("--sprawdz", default="", help="formy rozdzielone srednikiem do sprawdzenia w slowniku")
     a = ap.parse_args()
@@ -91,9 +95,9 @@ def main():
         print("Podaj katalog(i) z tlumaczeniami albo --sprawdz.")
         return 1
     t0 = time.time()
-    cache = {}                                            # slowo -> True (jest w slowniku) / False (brak)
     cnt, pliki, mid, mid_up, przyklad = collections.Counter(), collections.defaultdict(set), collections.Counter(), collections.Counter(), {}
-    nplik = nsl = 0
+    nplik = nbajt = 0
+    rx = TOK if a.wszystkie else KAND
     for kat in a.katalogi:
         for dp, dn, fn in os.walk(kat):
             dn[:] = [x for x in dn if x.lower() != "org"]
@@ -105,24 +109,29 @@ def main():
                     tekst = open(os.path.join(dp, f), "rb").read().decode("utf-8")
                 except UnicodeDecodeError:
                     continue
-                for nr, linia in enumerate(tekst.split("\n"), 1):
-                    for m in TOK.finditer(linia):
-                        s = m.group(0)
-                        w = s.lower()
-                        nsl += 1
-                        st = cache.get(w)
-                        if st is None:
-                            st = cache[w] = len(w) < 3 or len(set(w)) <= 2 or bool(re.search("[qvx]", w)) or bool(D.lookup(w)) or bool(D.lookup(s)) or bool(D.lookup(w.capitalize()))
-                        if st:
-                            continue
-                        cnt[w] += 1
-                        pliki[w].add(nplik)
-                        pre = linia[:m.start()].rstrip()
-                        if pre and pre[-1] not in '.!?"„”«»…:;—–-':           # nie na poczatku zdania: wielka litera => imie
-                            mid[w] += 1
-                            mid_up[w] += s[0].isupper()
-                        if w not in przyklad:
-                            przyklad[w] = (f[:-7][:40], nr, linia[max(0, m.start() - 35):m.end() + 25].strip())
+                nbajt += len(tekst)
+                for m in rx.finditer(tekst):
+                    s_ = m.group(0)
+                    w = s_.lower()
+                    if len(w) < 4:
+                        continue
+                    cnt[w] += 1
+                    pliki[w].add(nplik)
+                    pre = tekst[max(0, m.start() - 6):m.start()].rstrip()
+                    if pre and pre[-1] not in '.!?"„”«»…:;—–-':           # nie na poczatku zdania: wielka litera => imie
+                        mid[w] += 1
+                        mid_up[w] += s_[0].isupper()
+                    if w not in przyklad:
+                        nr = tekst.count("\n", 0, m.start()) + 1
+                        wl = tekst.rfind("\n", 0, m.start()) + 1
+                        przyklad[w] = (f[:-7][:40], nr, tekst[max(wl, m.start() - 35):m.end() + 25].replace("\n", " ").strip())
+    t_skan = time.time() - t0
+    kand = [w for w, n in cnt.items() if n >= a.min and len(pliki[w]) >= a.min_plikow]
+    cache, nsl = {}, nbajt
+    for w in kand:                                            # slownik sprawdza tylko kandydatow
+        cache[w] = bool(D.lookup(w)) or bool(D.lookup(w.capitalize())) or len(set(w)) <= 2 or bool(re.search("[qvx]", w))
+    for w in [w for w in cnt if w not in cache or cache[w]]:
+        del cnt[w]                                            # zostaja tylko slowa spoza slownika
     wyniki = []
     for w, n in cnt.most_common():
         if n < a.min or len(pliki[w]) < a.min_plikow:
@@ -143,8 +152,8 @@ def main():
         except Exception:
             sug[w] = []
     sekcje = [("ROZKAZUJACE (koncowki -aj/-ajcie/-uj/-ij...)", "rozkazujacy?"), ("CZAS PRZESZLY (-zili..., analogia 'gryzili')", "czas przeszly?"), ("INNE slowa spoza slownika", "inne")]
-    L = ["# Slowa spoza slownika polskiego w tlumaczeniach", "", "Przeszukano %d plikow, %d slow w %.0f s; slow unikalnych %d, w tym spoza slownika (po odsianiu imion i rzadkich): %d."
-         % (nplik, nsl, time.time() - t0, len(cache), len(wyniki)), "",
+    L = ["# Slowa spoza slownika polskiego w tlumaczeniach", "", "Przeszukano %d plikow (%.0f MB tekstu) w %.0f s; sprawdzono w slowniku %d kandydatow, spoza slownika (po odsianiu imion i rzadkich): %d."
+         % (nplik, nsl / 1e6, time.time() - t0, len(cache), len(wyniki)), "",
          "**Uwaga:** slownik nie zna bledow typu 'istniejace slowo w zlym kontekscie' (np. wytryskaj, wylizuj); podpowiedzi dla rozkazujacych bywaja bledne - poprawna forme ustal i sprawdz `--sprawdz`.", ""]
     reguly = ["# Kandydaci na wpisy do poprawki_deepl.txt (NIC nie jest stosowane automatycznie). Odkomentuj i uzupelnij tylko zatwierdzone: zle => dobre", ""]
     for tytul, kod in sekcje:
@@ -161,7 +170,7 @@ def main():
     open(a.wynik, "w", encoding="utf-8", newline="\n").write("\n".join(L) + "\n")
     rpath = os.path.splitext(a.wynik)[0] + "_reguly.txt"
     open(rpath, "w", encoding="utf-8", newline="\n").write("\n".join(reguly) + "\n")
-    print("Przeszukano %d plikow (%d slow) w %.0f s. Raport: %s | szablon regul: %s" % (nplik, nsl, time.time() - t0, a.wynik, rpath))
+    print("Przeszukano %d plikow (%.0f MB tekstu) w %.0f s (skan %.0f s). Raport: %s | szablon regul: %s" % (nplik, nsl / 1e6, time.time() - t0, t_skan, a.wynik, rpath))
     for w, n, nf, typ in wyniki[:40]:
         print("  %-22s %6dx %4d plikow  %-15s %s" % (w, n, nf, typ, ", ".join(sug.get(w, [])[:3])))
     return 0

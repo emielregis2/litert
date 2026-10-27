@@ -35,17 +35,19 @@ wylizujcie => wyliżcie
 
 # Przymiotnik "mamusiowy" (POPRAWNE potoczne slowo, ale Darek chce standardowego "matczyny"): decyzja Darka zgloszona dla formy "mamusiowej"; reszta odmiany z analogii.
 # UWAGA ZNACZENIOWA: "mamusiowy" moze tez znaczyc "nalezacy do mamusi" (np. mamusiowa pupcia) - przed zastosowaniem do ISTNIEJACYCH tlumaczen obejrzec konteksty (skan --sucho z przykladami).
-mamusiowy => matczyny
-mamusiowa => matczyna
-mamusiowe => matczyne
-mamusiowi => matczyni
-mamusiowego => matczynego
-mamusiowej => matczynej
-mamusiowych => matczynych
-mamusiowemu => matczynemu
-mamusiowym => matczynym
-mamusiową => matczyną
-mamusiowymi => matczynymi
+# REGULY WYLACZONE (zakomentowane) po skanie 6546 tlumaczen: 180 trafien, w wiekszosci "mommy" jako rola/osoba (mamusiowa dziurka, mamusiowy chlopczyk, mamusiowy kink,
+#   mamusiowa lista niegrzecznych chlopcow), gdzie "matczyny" zmienia sens; poprawna forma dzierzawcza to "mamusin". Wlaczyc dopiero po decyzji Darka (np. tylko konteksty glos/sposob/milosc).
+# WYLACZONE: mamusiowy => matczyny
+# WYLACZONE: mamusiowa => matczyna
+# WYLACZONE: mamusiowe => matczyne
+# WYLACZONE: mamusiowi => matczyni
+# WYLACZONE: mamusiowego => matczynego
+# WYLACZONE: mamusiowej => matczynej
+# WYLACZONE: mamusiowych => matczynych
+# WYLACZONE: mamusiowemu => matczynemu
+# WYLACZONE: mamusiowym => matczynym
+# WYLACZONE: mamusiową => matczyną
+# WYLACZONE: mamusiowymi => matczynymi
 
 # Rozkaznik NIEDOKONANY od "wytryskiwac" (wytryskuj to POPRAWNE slowo, ale Darek chce formy dokonanej, jak przy wytryskaj): decyzja Darka; forma z -cie z analogii
 wytryskuj => wytryśnij
