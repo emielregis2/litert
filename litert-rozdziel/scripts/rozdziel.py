@@ -343,25 +343,17 @@ def tylko_poprawki(d, reguly, sucho=False):
 
 
 def _tnij_linie_tury(linia):
-    """Tnie jedna linie w KAZDEJ zmianie mowcy: zamykajacy cudzyslow U+201D, tuz po nim (z jedna spacja lub bez) otwierajacy U+201E, na poziomie
-    najwyzszego cudzyslowu (cytaty zagniezdzone nie sa ciete). Zwraca liste odcinkow (spacja miedzy cudzyslowami jest usuwana)."""
+    """Tnie jedna linie w KAZDEJ zmianie mowcy: zamykajacy cudzyslow U+201D, tuz po nim (z jedna spacja lub bez) otwierajacy U+201E.
+    Ciecie jest bezwarunkowe (takze gdy cudzyslowy w linii sa niezbilansowane); odcinek musi miec co najmniej 2 litery lub cyfry.
+    Zwraca liste odcinkow (spacja miedzy cudzyslowami jest usuwana)."""
     if "\u201d" not in linia or "\u201e" not in linia:
         return [linia]
-    odc, start, glebokosc, i, n = [], 0, 0, 0, len(linia)
-    while i < n:
-        c = linia[i]
-        if c == "\u201e":
-            glebokosc += 1
-        elif c == "\u201d":
-            if glebokosc > 0:
-                glebokosc -= 1
-            if glebokosc == 0:
-                k = i + 2 if i + 1 < n and linia[i + 1] == " " else i + 1
-                if k < n and linia[k] == "\u201e" and len(re.findall(r"[^\W_]", linia[start:i + 1])) >= 2:
-                    odc.append(linia[start:i + 1])
-                    start, i = k, k
-                    continue
-        i += 1
+    odc, start = [], 0
+    for m in re.finditer("\u201d ?\u201e", linia):
+        seg = linia[start:m.start() + 1]
+        if len(re.findall(r"[^\W_]", seg)) >= 2:
+            odc.append(seg)
+            start = m.end() - 1
     odc.append(linia[start:])
     return odc
 
@@ -389,9 +381,18 @@ def _wypisz_tury(d, szczegoly, seps, sucho=False):
         (" - najwiecej: " + ", ".join("%s %d" % (f[:-7][:34], c) for f, c in sorted(szczegoly, key=lambda x: -x[1])[:4])) if szczegoly else ""))
     org = os.path.join(d, "org")
     if szczegoly and not sucho and os.path.isdir(org):
-        with open(os.path.join(org, os.path.basename(d) + "_tury_pl.txt"), "w", encoding="utf-8", newline="\n") as fh:
-            fh.write("Ciecia w zmianach mowcy (” „) w gotowych tlumaczeniach: %d ciec w %d plikach\n" % (ciecia, len(szczegoly)))
-            for f, c in sorted(szczegoly):
+        lista = os.path.join(org, os.path.basename(d) + "_tury_pl.txt")
+        suma = collections.Counter()
+        if os.path.exists(lista):                     # kolejne przebiegi sumuja sie w jednym pliku
+            for wiersz in open(lista, encoding="utf-8"):
+                m = re.match(r"^\s*(\d+)\s{2}(.+?)\s*$", wiersz)
+                if m:
+                    suma[m.group(2)] += int(m.group(1))
+        for f, c in szczegoly:
+            suma[f] += c
+        with open(lista, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("Ciecia w zmianach mowcy (” „) w gotowych tlumaczeniach: %d ciec w %d plikach (suma wszystkich przebiegow)\n" % (sum(suma.values()), len(suma)))
+            for f, c in sorted(suma.items()):
                 fh.write("%6d  %s\n" % (c, f))
 
 
