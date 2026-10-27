@@ -342,6 +342,110 @@ def tylko_poprawki(d, reguly, sucho=False):
     return 0
 
 
+def _tnij_linie_tury(linia):
+    """Tnie jedna linie w KAZDEJ zmianie mowcy: zamykajacy cudzyslow U+201D, tuz po nim (z jedna spacja lub bez) otwierajacy U+201E, na poziomie
+    najwyzszego cudzyslowu (cytaty zagniezdzone nie sa ciete). Zwraca liste odcinkow (spacja miedzy cudzyslowami jest usuwana)."""
+    if "\u201d" not in linia or "\u201e" not in linia:
+        return [linia]
+    odc, start, glebokosc, i, n = [], 0, 0, 0, len(linia)
+    while i < n:
+        c = linia[i]
+        if c == "\u201e":
+            glebokosc += 1
+        elif c == "\u201d":
+            if glebokosc > 0:
+                glebokosc -= 1
+            if glebokosc == 0:
+                k = i + 2 if i + 1 < n and linia[i + 1] == " " else i + 1
+                if k < n and linia[k] == "\u201e" and len(re.findall(r"[^\W_]", linia[start:i + 1])) >= 2:
+                    odc.append(linia[start:i + 1])
+                    start, i = k, k
+                    continue
+        i += 1
+    odc.append(linia[start:])
+    return odc
+
+
+def dziel_tury_pl(tekst, tryb="auto"):
+    """Postprodukcja: tnie KAZDA linie gotowego tlumaczenia w zmianie mowcy (zamykajacy ” + otwierajacy „). Odcinki rozdziela pusta linia, gdy plik uzywa
+    pustych linii miedzy akapitami (co najmniej 25% linii pustych; tryb 'pusta' wymusza), inaczej sama nowa linia (tryb 'nowa'). Zwraca (tekst, liczba_ciec, separator)."""
+    crlf = "\r\n" in tekst
+    linie = tekst.replace("\r\n", "\n").split("\n")
+    pustych = sum(1 for l in linie if not l.strip())
+    sep = {"pusta": "\n\n", "nowa": "\n"}.get(tryb) or ("\n\n" if pustych / max(1, len(linie)) >= 0.25 else "\n")
+    wyj, ciecia = [], 0
+    for l in linie:
+        odc = _tnij_linie_tury(l)
+        ciecia += len(odc) - 1
+        wyj.append(sep.join(odc))
+    nowy = "\n".join(wyj)
+    return (nowy.replace("\n", "\r\n") if crlf else nowy), ciecia, sep
+
+
+def _wypisz_tury(d, szczegoly, seps, sucho=False):
+    ciecia = sum(c for _, c in szczegoly)
+    print("TURY PL%s: %d ciec (zmiana mowcy: ” „) w %d plikach (separator: %s)%s" % (
+        " (SUCHO: nic nie zapisano)" if sucho else "", ciecia, len(szczegoly), ("pusta linia lub nowa linia, zaleznie od pliku" if len(seps) > 1 else ("pusta linia" if "\n\n" in seps else "nowa linia")),
+        (" - najwiecej: " + ", ".join("%s %d" % (f[:-7][:34], c) for f, c in sorted(szczegoly, key=lambda x: -x[1])[:4])) if szczegoly else ""))
+    org = os.path.join(d, "org")
+    if szczegoly and not sucho and os.path.isdir(org):
+        with open(os.path.join(org, os.path.basename(d) + "_tury_pl.txt"), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("Ciecia w zmianach mowcy (” „) w gotowych tlumaczeniach: %d ciec w %d plikach\n" % (ciecia, len(szczegoly)))
+            for f, c in sorted(szczegoly):
+                fh.write("%6d  %s\n" % (c, f))
+
+
+def postprodukcja_tury(d, wyniki, tryb="auto"):
+    """Po udanym sprzataniu: ciecie linii na zmianach mowcy w plikach wynikowych (po kontroli ukladu linii wzgledem oryginalow)."""
+    szczegoly, seps = [], set()
+    for w in wyniki:
+        p = os.path.join(d, w)
+        if not os.path.isfile(p):
+            continue
+        t = open(p, "rb").read().decode("utf-8")
+        nowy, c, sep = dziel_tury_pl(t, tryb)
+        if c:
+            seps.add(sep)
+            szczegoly.append((w, c))
+            with open(p, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(nowy)
+    _wypisz_tury(d, szczegoly, seps)
+
+
+def tylko_tury_pl(d, tryb="auto", sucho=False, kopia=None):
+    """Ciecie linii na zmianach mowcy w ISTNIEJACYCH tlumaczeniach ' pl.txt' katalogu (bez spisu i org). kopia: zip z wersjami zmienianych plikow sprzed ciecia."""
+    import zipfile
+    zf = zipfile.ZipFile(kopia, "w", zipfile.ZIP_DEFLATED) if (kopia and not sucho) else None
+    sprawdzone, szczegoly, seps = 0, [], set()
+    for f in sorted(os.listdir(d)):
+        p = os.path.join(d, f)
+        if not (f.endswith(" pl.txt") and os.path.isfile(p)) or re.search(r"_all(_\d+)? pl\.txt$", f) or f.startswith("DO_PRZETLUMACZENIA"):
+            continue
+        sprawdzone += 1
+        raw = open(p, "rb").read()
+        try:
+            t = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            print("POMINIETO (nie jest UTF-8):", f)
+            continue
+        nowy, c, sep = dziel_tury_pl(t, tryb)
+        if c:
+            szczegoly.append((f, c))
+            seps.add(sep)
+            if not sucho:
+                if zf:
+                    zf.writestr(f, raw)
+                with open(p, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(nowy)
+    if zf:
+        zf.close()
+    print("sprawdzono %d plikow" % sprawdzone)
+    _wypisz_tury(d, szczegoly, seps, sucho)
+    if kopia and not sucho and szczegoly:
+        print("kopia zapasowa zmienionych plikow:", kopia)
+    return 0
+
+
 def _raport_czkawki(nazwa, tekst, op):
     """Informacyjny raport 'czkawki' DeepL (nie blokuje): nadwyzka podwojonych slow, powtorzonych sasiednich linii i 4x tego samego slowa
     wzgledem oryginalu."""
@@ -730,13 +834,19 @@ def main():
     ap.add_argument("--bez-poprawek", action="store_true", help="nie stosuj slownika poprawek DeepL (poprawki_deepl.txt) przy zapisie wynikow")
     ap.add_argument("--tylko-poprawki", action="store_true",
                     help="tylko zastosuj slownik poprawek DeepL do istniejacych tlumaczen ' pl.txt' w katalogu (bez rozdzielania i sprzatania)")
-    ap.add_argument("--sucho", action="store_true", help="z --tylko-poprawki: tylko policz zamiany, nic nie zapisuj")
+    ap.add_argument("--sucho", action="store_true", help="z --tylko-poprawki / --tylko-tury-pl: tylko policz, nic nie zapisuj")
+    ap.add_argument("--bez-tur-pl", action="store_true", help="NIE tnij linii gotowych tlumaczen w zmianach mowcy (domyslnie po udanym sprzataniu linie sa ciete w ” „)")
+    ap.add_argument("--tury-sep", choices=["auto", "pusta", "nowa"], default="auto", help="odstep miedzy odcinkami po ucieciu: auto (pusta linia, gdy plik uzywa pustych linii miedzy akapitami), pusta, nowa")
+    ap.add_argument("--tylko-tury-pl", action="store_true", help="tylko tnij linie w zmianach mowcy w istniejacych tlumaczeniach ' pl.txt' katalogu (bez rozdzielania i sprzatania)")
+    ap.add_argument("--kopia", default="", help="z --tylko-tury-pl: zapisz w tym zipie wersje zmienianych plikow sprzed ciecia")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
     reguly = [] if a.bez_poprawek else wczytaj_poprawki()
     zam_licznik, zam_plikow = collections.Counter(), [0]
     if a.tylko_poprawki:
         return tylko_poprawki(d, reguly, a.sucho)
+    if a.tylko_tury_pl:
+        return tylko_tury_pl(d, a.tury_sep, a.sucho, a.kopia or None)
     spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
     spis_path = os.path.join(d, spis_nazwa)
     if a.tylko_sprzatanie and not os.path.exists(spis_path) and os.path.exists(os.path.join(d, "org", spis_nazwa)):
@@ -760,6 +870,8 @@ def main():
             return 2
         print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
         wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, os.path.basename(d) + "_raport_naprawy.txt", a.zachowaj_techniczne)
+        if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
+            postprodukcja_tury(d, wyniki, a.tury_sep)
         return 0
     if not a.bez_zip:   # brakujace przetlumaczone pliki wypakuj z archiwum .zip z DeepL (jesli lezy w katalogu)
         oczek_pl = [pl[:-4] + " pl.txt" for pl in pliki] + [c[:-4] + " pl.txt" for _, cz in podzielone for c in cz]
@@ -923,6 +1035,8 @@ def main():
         else:
             print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
             wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, a.zachowaj_techniczne)
+            if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
+                postprodukcja_tury(d, wyniki, a.tury_sep)
     return 0 if not problemy else 2
 
 
