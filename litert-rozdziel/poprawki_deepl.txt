@@ -73,3 +73,10 @@ ssaj => ssij
 ssajcie => ssijcie
 zacisnij => zaciśnij
 zacisnijcie => zaciśnijcie
+
+# "mamusiow*" jako przydawka ("mommy cunt", "mommy-hole"): Darek uznal, ze formy mamusiowa/mamusiowej/mamusiową/mamusiowych to po prostu "mamusi" (zamiana w miejscu, bez przestawiania wyrazow).
+# Pozostale formy (mamusiowy, mamusiowe, mamusiowym, mamusiowego, mamusiowymi) zostaja bez zmian; reguly "mamusiowy => matczyny" powyzej pozostaja WYLACZONE (analiza 182 wystapien: zadne nie jest "motherly").
+mamusiowa => mamusi
+mamusiowej => mamusi
+mamusiową => mamusi
+mamusiowych => mamusi
