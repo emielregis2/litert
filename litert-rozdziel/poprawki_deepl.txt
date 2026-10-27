@@ -10,3 +10,43 @@ wylizaj => wyliż
 wylizajcie => wyliżcie
 oblizaj => obliż
 zlizaj => zliż
+
+# Tryb rozkazujacy od "wytrysnac" (DeepL daje wytryskaj zamiast wytrysnij): zgloszone przez Darka; forma liczby mnogiej dopisana na zasadzie analogii
+wytryskaj => wytryśnij
+wytryskajcie => wytryśnijcie
+
+# Czas przeszly, 3. os. l. mn. rodzaju meskoosobowego od "gryzc" (DeepL daje gryzili zamiast gryzli): zgloszone przez Darka; formy z -smy/-scie dopisane z analogii
+gryzili => gryźli
+gryziliśmy => gryźliśmy
+gryziliście => gryźliście
+# KANDYDACI (formy NIE istnieja w slowniku hunspell pl_PL i nie kolidują z poprawnymi, ale nie ma jeszcze danych, ze DeepL je tworzy; dopisac po skanie, gdy wystepuja):
+#   przedrostki u, za, prze, na, pod, ob, w, wy, roz, do, od, przy, nad, z  +  gryzili | gryziliśmy | gryziliście  =>  to samo z gryźli | gryźliśmy | gryźliście
+#   np. ugryzili => ugryźli, zagryzili => zagryźli, przygryzili => przygryźli
+# KANDYDACI z rodzin pokrewnych (formy nie istnieja; zweryfikowane w pl_PL; dopisac po skanie): zalizaj/nalizaj/podlizaj/przelizaj/ulizaj => zaliż/naliż/podliż/przeliż/uliż;
+#   ssaj/possaj/wyssaj/zassaj/wessaj/dossaj => ssij/possij/wyssij/zassij/wessij/dossij; trysnij/wytrysnij => tryśnij/wytryśnij; wsunij/wysunij/rozsunij => wsuń/wysuń/rozsuń;
+#   ścisnij => ściśnij; dotknaj => dotknij; szeptaj/wyszeptaj => szepcz/wyszepcz; jęczaj => jęcz; krzyczaj => krzycz; dojdzij/przyjdzij/wejdzij/zejdzij => dojdź/przyjdź/wejdź/zejdź
+# UWAGA: formy ISTNIEJACE w polszczyznie (np. wytryskaj, tryskaj, wepchaj, obciagaj, wciagaj, spuszczaj) sa poprawne - tylko na wyrazna decyzje Darka (jak wytryskaj).
+
+# Tryb rozkazujacy NIEDOKONANY od "wylizywac" (wylizuj to POPRAWNE slowo, ale Darek chce formy dokonanej wyliz): decyzja Darka; forma z -cie dopisana z analogii
+wylizuj => wyliż
+wylizujcie => wyliżcie
+# DO DECYZJI Darka (poprawne formy niedokonane, tej samej rodziny jak wylizuj - NIE poprawiac bez decyzji): oblizuj, zlizuj, zalizuj, podlizuj, ulizuj.
+# Formy NIEISTNIEJACE (bezpieczne, dopisac po skanie danych): polizuj, polizujcie => poliż, poliżcie; nalizuj => naliż; przelizuj => przeliż.
+
+# Przymiotnik "mamusiowy" (POPRAWNE potoczne slowo, ale Darek chce standardowego "matczyny"): decyzja Darka zgloszona dla formy "mamusiowej"; reszta odmiany z analogii.
+# UWAGA ZNACZENIOWA: "mamusiowy" moze tez znaczyc "nalezacy do mamusi" (np. mamusiowa pupcia) - przed zastosowaniem do ISTNIEJACYCH tlumaczen obejrzec konteksty (skan --sucho z przykladami).
+mamusiowy => matczyny
+mamusiowa => matczyna
+mamusiowe => matczyne
+mamusiowi => matczyni
+mamusiowego => matczynego
+mamusiowej => matczynej
+mamusiowych => matczynych
+mamusiowemu => matczynemu
+mamusiowym => matczynym
+mamusiową => matczyną
+mamusiowymi => matczynymi
+
+# Rozkaznik NIEDOKONANY od "wytryskiwac" (wytryskuj to POPRAWNE slowo, ale Darek chce formy dokonanej, jak przy wytryskaj): decyzja Darka; forma z -cie z analogii
+wytryskuj => wytryśnij
+wytryskujcie => wytryśnijcie
