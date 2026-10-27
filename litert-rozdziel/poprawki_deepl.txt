@@ -57,3 +57,13 @@ wytryskujcie => wytryśnijcie
 pieszczili => pieścili
 pieszcziliśmy => pieściliśmy
 pieszcziliście => pieściliście
+
+# Tryb rozkazujacy: DeepL tworzy nieistniejace formy (skan slow spoza slownika, ok. 7900 plikow); poprawne formy podal Darek; liczba mnoga (-cie) z analogii
+ścisnij => ściśnij
+ścisnijcie => ściśnijcie
+dorosnij => dorośnij
+dorosnijcie => dorośnijcie
+rozpnij => rozepnij
+rozpnijcie => rozepnijcie
+gryzij => gryź
+gryzijcie => gryźcie
