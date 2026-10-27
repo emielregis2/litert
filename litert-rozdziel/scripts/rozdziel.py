@@ -37,6 +37,7 @@ except Exception:
 
 KODOWANIE = {}   # sciezka -> uzyte kodowanie
 PRZERWY = {}     # nazwa czesci -> liczba pustych linii miedzy ta czescia a poprzednia (ze spisu)
+SCALONE_OK = {}   # nazwa wyniku -> liczba krotkich koncowek zdan, ktore DeepL doklejil do poprzedniej linii (zaakceptowane, tresc zachowana)
 PLAN_DZIEL = {}  # nazwa oryginalu -> [(indeks linii oryginalu, liczba kawalkow)] - dlugie linie podzielone przy scalaniu (ze spisu)
 PLAN_ODSTEPY = {}  # nazwa oryginalu -> {indeks linii: napis 's'/'q' dlugosci k-1} - sposob laczenia kawalkow (s = spacja, q = bez niczego)
 WIRT = {}        # nr znacznika -> (nazwa duzego pliku, nr czesci, liczba czesci, przerwa) - czesci duzych plikow pakowane do serii razem z malymi (ze spisu)
@@ -153,6 +154,126 @@ def _sklej_kawalki(czesci, odstepy=None):
     return wynik
 
 
+def _koncowka_zdania(lo, j):
+    """Czy linia j (indeks w liscie linii lo) jest krotka (do 30 znakow) koncowka zdania zawinietego przez autora w pol zdania?
+    Poprzednia linia jest niepusta i nie konczy sie znakiem konca zdania (np. 'They both fell asleep soon' + 'after.'). DeepL zwykle dokleja taka koncowke
+    do poprzedniej linii (tresc zostaje, ubywa jednej linii)."""
+    l = lo[j].strip()
+    if j == 0 or not l or len(l) > 30:
+        return False
+    return _poprzednia_w_pol_zdania(lo, j)
+
+
+def _poprzednia_w_pol_zdania(lo, j):
+    """Czy niepusta linia poprzedzajaca linie j konczy sie w pol zdania (nie znakiem konca zdania)?"""
+    if j == 0:
+        return False
+    p = lo[j - 1].strip()
+    return bool(p) and (p[-1].isalnum() or p[-1] in ",-\u2013\u2014'\u2019")
+
+
+_POCZATEK_KONCOWKI = re.compile(r'^\s*[^.!?]{0,29}[.!?]+["\u201d\u201c\u00bb]*(?=\s)')
+
+
+_DL_MOD = [None]
+
+
+def _dl_modul():
+    if _DL_MOD[0] is None:
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("dlugie_linie_mod", os.path.join(os.path.dirname(os.path.abspath(__file__)), "dlugie_linie.py"))
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)
+            _DL_MOD[0] = m
+        except Exception:
+            _DL_MOD[0] = False
+    return _DL_MOD[0]
+
+
+def _kawalki_dokladne(l, k):
+    """Dlugosci kawalkow dlugiej linii wg tego samego podzialu co scal.py (zmiany mowcy + limit 800 znakow); None, gdy liczba kawalkow sie nie zgadza (inne parametry scalania)."""
+    dl = _dl_modul()
+    if not dl:
+        return None
+    try:
+        kaw, sp = dl.dziel_na_turach(dl.skroc(l), 4000, 0, 0, True)
+        kaw, sp = dl.rozbij_po_kropce(kaw, sp, 800, True)
+    except Exception:
+        return None
+    return [len(x.strip()) for x in kaw] if len(kaw) == k else None
+
+
+def _scalone_koncowki(lo, k_dla, lw, bw=None):
+    """Dopasowanie ukladu oryginalu do wyniku, gdy DeepL (1) DOKLEIL krotkie koncowki zdan do poprzedniego kawalka albo (2) ROZDZIELIL jedna linie na dwie.
+    Zwraca (zbior doklejonych kawalkow jako pary (indeks linii oryginalu, numer kawalka), lista indeksow linii wyniku j do zlaczenia z linia j+1) albo None.
+    Kandydaci na (1): krotka (do 30 znakow) linia po linii konczacej sie w pol zdania; w dlugich liniach podzielonych przy scalaniu krotkie kawalki (dokladne dlugosci z podzialu jak w scal.py;
+    gdy sie nie da, tylko krotki poczatek linii). Dopasowanie po dlugosciach modeluje SCALENIE (linia wyniku = poprzedni kawalek + doklejone koncowki) i ROZDZIELENIE (dwie linie wyniku = jeden kawalek).
+    lw = dlugosci niepustych linii wyniku; bw = dla kazdej niepustej linii wyniku: czy poprzedza ja pusta linia (twardy warunek ukladu: akapit zaczyna sie po pustej linii)."""
+    import math
+    ex = []                                                     # (dlugosc, kandydat, (j, c))
+    for j, l in enumerate(lo):
+        if not l.strip():
+            continue
+        k = k_dla.get(j, 1)
+        if k == 1:
+            ex.append((len(l.strip()), _koncowka_zdania(lo, j), (j, 0)))
+            continue
+        dok = _kawalki_dokladne(l, k)
+        if dok:
+            for c, dlc in enumerate(dok):
+                ex.append((dlc, dlc <= 30 and (c > 0 or _poprzednia_w_pol_zdania(lo, j)), (j, c)))
+            continue
+        hm = _POCZATEK_KONCOWKI.match(l) if _poprzednia_w_pol_zdania(lo, j) else None
+        if hm:
+            hl = len(hm.group(0).strip())
+            ex.append((hl, True, (j, 0)))
+            ex.extend(((len(l.strip()) - hl) / (k - 1), False, (j, c)) for c in range(1, k))
+        else:
+            ex.extend((len(l.strip()) / k, False, (j, c)) for c in range(k))
+    n, m = len(ex), len(lw)
+    if abs(n - m) > 60:
+        return None
+    bs = [c == 0 and (j == 0 or not lo[j - 1].strip()) for (_, _, (j, c)) in ex]       # czy kawalek zaczyna akapit po pustej linii
+
+    def koszt(w, e):
+        return abs(math.log((w + 5) / (1.13 * e + 5)))
+    dmin, dmax = -6, max(n - m, 0) + 6                          # d = (liczba doklejonych kawalkow) - (liczba rozdzielonych linii wyniku); indeks wyniku j = i - d
+    dp = [dict() for _ in range(n + 1)]
+    dp[0][0] = (0.0, None)
+
+    def relax(i2, d2, nc, bt):
+        if dmin <= d2 <= dmax and (d2 not in dp[i2] or nc < dp[i2][d2][0]):
+            dp[i2][d2] = (nc, bt)
+    for i in range(n):
+        for d, (c, _) in list(dp[i].items()):
+            j = i - d
+            if not 0 <= j < m:
+                continue
+            zgodny = bw is None or bs[i] == bw[j]
+            if zgodny:
+                relax(i + 1, d, c + koszt(lw[j], ex[i][0]), (d, i, 0, 0))                # zwykle dopasowanie kawalka i do linii wyniku j
+            tot = ex[i][0]
+            for t in (range(1, 4) if zgodny else ()):                                      # kawalek i + t kolejnych kandydatow doklejonych do jednej linii wyniku
+                if i + t >= n or not ex[i + t][1]:
+                    break
+                tot += ex[i + t][0]
+                relax(i + t + 1, d + t, c + koszt(lw[j], tot), (d, i, 0, t))
+            if j + 1 < m and (bw is None or (bs[i] == bw[j] and not bw[j + 1])):           # kawalek i rozdzielony przez DeepL na dwie sasiednie linie wyniku (j, j+1)
+                relax(i + 1, d - 1, c + koszt(lw[j] + lw[j + 1], ex[i][0]) + 2.0, (d, i, 1, 0))
+    if (n - m) not in dp[n]:
+        return None
+    sk, spl, i, d = set(), [], n, n - m
+    while i > 0:
+        pd, i0, rodzaj, t = dp[i][d][1]
+        for q in range(i0 + 1, i0 + 1 + t):
+            sk.add(ex[q][2])
+        if rodzaj:
+            spl.append(i0 - pd)
+        i, d = i0, pd
+    return sk, sorted(spl)
+
+
 def zloz_dzielone(tekst, orig, d, problemy, etykieta):
     """Sklada z powrotem dlugie linie, ktore scal.py podzielil na kawalki (plan ze spisu). Skladamy TYLKO wtedy, gdy uklad linii (puste/niepuste)
     wyniku dokladnie zgadza sie z oczekiwanym; w przeciwnym razie nic nie zmieniamy i zglaszamy problem (DeepL mogl scalic lub pominac linie)."""
@@ -176,6 +297,38 @@ def zloz_dzielone(tekst, orig, d, problemy, etykieta):
     wyn = tekst.split("\n")
     if wyn and wyn[-1] == "":
         wyn = wyn[:-1]
+    skip = set()
+    if [bool(x.strip()) for x in wyn] != oczek:        # moze DeepL dokleil krotkie koncowki zdan do poprzednich linii (tresc zostaje, ubywa linii)?
+        bw, _pb = [], True
+        for x in wyn:
+            if x.strip():
+                bw.append(_pb)
+                _pb = False
+            else:
+                _pb = True
+        res = _scalone_koncowki(lo, k_dla, [len(x.strip()) for x in wyn if x.strip()], bw)
+        if res and (res[0] or res[1]):
+            sk, spl = res
+            wyn2 = list(wyn)
+            nbp = [p for p, x in enumerate(wyn2) if x.strip()]
+            ok_spl = True
+            for jj in sorted(spl, reverse=True):                 # DeepL rozdzielil linie na dwie: zlacz je z powrotem
+                p1, p2 = nbp[jj], nbp[jj + 1]
+                if p2 != p1 + 1:
+                    ok_spl = False
+                    break
+                wyn2[p1] = wyn2[p1].rstrip() + " " + wyn2[p2].lstrip()
+                del wyn2[p2]
+            oczek2 = []
+            for j, l in enumerate(lo):
+                kk = k_dla.get(j, 1)
+                oczek2 += [bool(l.strip())] * (kk - sum(1 for c in range(kk) if (j, c) in sk))
+            if ok_spl and [bool(x.strip()) for x in wyn2] == oczek2:
+                skip, oczek, wyn = sk, oczek2, wyn2
+                if spl:
+                    print("   zlaczone linie rozdzielone przez DeepL: %s: %d" % (etykieta, len(spl)))
+                SCALONE_OK[etykieta] = sum(1 for (j, c) in sk if k_dla.get(j, 1) == 1)      # tylko calkiem usuniete linie zmniejszaja liczbe linii wyniku
+                print("   doklejone koncowki zdan (DeepL scalil z poprzednia linia, tresc zachowana): %s: %d" % (etykieta, len(sk)))
     if [bool(x.strip()) for x in wyn] != oczek:
         problemy.append("%s: NIE zlozono dlugich linii (podzielonych przy scalaniu): uklad linii wyniku (%d) nie zgadza sie z oczekiwanym (%d) - DeepL mogl scalic lub pominac linie"
                         % (etykieta, len(wyn), len(oczek)))
@@ -183,8 +336,16 @@ def zloz_dzielone(tekst, orig, d, problemy, etykieta):
     nowe, i = [], 0
     for j in range(len(lo)):
         k = k_dla.get(j, 1)
-        nowe.append(wyn[i] if k == 1 else _sklej_kawalki(wyn[i:i + k], PLAN_ODSTEPY.get(orig, {}).get(j)))
-        i += k
+        zost = [c for c in range(k) if (j, c) not in skip]          # kawalki, ktore sa w wyniku (pozostale DeepL doskleil do poprzednich kawalkow)
+        if not zost:
+            continue
+        if len(zost) == k:
+            nowe.append(wyn[i] if k == 1 else _sklej_kawalki(wyn[i:i + k], PLAN_ODSTEPY.get(orig, {}).get(j)))
+        else:
+            odst = PLAN_ODSTEPY.get(orig, {}).get(j)
+            nowe_odst = "".join(odst[b - 1] for b in zost[1:]) if odst and len(odst) == k - 1 else None
+            nowe.append(_sklej_kawalki(wyn[i:i + len(zost)], nowe_odst))
+        i += len(zost)
     print("   zlozono dlugie linie: %s (%d linii z %d kawalkow)" % (etykieta, len(plan), sum(k for _, k in plan)))
     return "\n".join(nowe) + "\n"
 
@@ -447,6 +608,64 @@ def tylko_tury_pl(d, tryb="auto", sucho=False, kopia=None, narracja=True):
     return 0
 
 
+CZK_WPISY, CZK_INNE, _CZK_MOD = [], [0], [None]   # znaleziska kroku czkawki (etykieta, znalezisko), liczba uzasadnionych podwojen, zaladowany modul
+
+
+def _czkawka_modul():
+    if _CZK_MOD[0] is None:
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("czkawka_przeglad", os.path.join(os.path.dirname(os.path.abspath(__file__)), "czkawka_przeglad.py"))
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)
+            _CZK_MOD[0] = m
+        except Exception:
+            _CZK_MOD[0] = False
+    return _CZK_MOD[0]
+
+
+def krok_czkawki(tekst, orig, d, etykieta, tryb):
+    """Czkawka DeepL (czkawka_przeglad.py): podwojone slowa i bledy na wielkich literach, porownane z oryginalem. tryb: 'napraw' (bezpieczne autopoprawki + raport),
+    'raport' (tylko raport), 'wylaczone'. Wymaga oryginalu (w katalogu albo w org); autopoprawki tylko przy ukladzie linii 1:1. Liczba linii sie nie zmienia."""
+    if tryb == "wylaczone":
+        return tekst
+    mod = _czkawka_modul()
+    op = next((x for x in (os.path.join(d, orig), os.path.join(d, "org", orig)) if os.path.isfile(x)), None)
+    if not mod or not op:
+        return tekst
+    nowy, wyn, n = mod.napraw_tekst(tekst, mod.dec(open(op, "rb").read()), tryb == "napraw")
+    for w in wyn:
+        w["poprawiono"] = bool(n) and w["klasa"] == mod.K_AUTO and bool(w.get("dokl"))
+        if w["klasa"] in mod.ZLE:
+            CZK_WPISY.append((etykieta, w))
+        else:
+            CZK_INNE[0] += 1
+    return nowy
+
+
+def podsumuj_czkawke(d, raport_nazwa):
+    mod = _czkawka_modul()
+    if not mod or not (CZK_WPISY or CZK_INNE[0]):
+        return
+    popr = [(e, w) for e, w in CZK_WPISY if w.get("poprawiono")]
+    przeg = [(e, w) for e, w in CZK_WPISY if not w.get("poprawiono")]
+    linie = []
+    for e, w in popr + przeg:
+        if w.get("poprawiono"):
+            linie.append("poprawiono: %s l.%d '%s' -> '%s'" % (e, w["linia"], w["slowo"], w["tok"]))
+        else:
+            linie.append("do przegladu: %s l.%d [%s] '%s' | PL: ...%s... | EN: ...%s..." % (e, w["linia"], w["klasa"], w["slowo"], w["pl"].replace("\n", " "), w["en"].replace("\n", " ")))
+    print("CZKAWKA: %d miejsc: autopoprawiono %d, do przegladu %d (pominieto %d podwojen uzasadnionych: powtorzenie w oryginale, nazwa, idiom, zaimek)" % (len(CZK_WPISY), len(popr), len(przeg), CZK_INNE[0]))
+    for l in linie[:12]:
+        print("   " + l[:260])
+    if len(linie) > 12:
+        print("   ... pelna lista (%d) w pliku %s" % (len(linie), raport_nazwa))
+    if linie:
+        import datetime
+        with open(os.path.join(d, raport_nazwa), "a", encoding="utf-8", newline="\n") as fh:
+            fh.write("%s\nCZKAWKA DeepL: %d miejsc, autopoprawiono %d, do przegladu %d\n%s\n\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), len(CZK_WPISY), len(popr), len(przeg), "\n".join("   " + l for l in linie)))
+
+
 def _raport_czkawki(nazwa, tekst, op):
     """Informacyjny raport 'czkawki' DeepL (nie blokuje): nadwyzka podwojonych slow, powtorzonych sasiednich linii i 4x tego samego slowa
     wzgledem oryginalu."""
@@ -639,22 +858,26 @@ def _sprawdz_akapity(nazwa, tekst, op, problemy, krotko=20):
         o = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
         o = raw.decode("cp1252", errors="replace")
-    lo = [(i + 1, len(x.strip())) for i, x in enumerate(o.replace("\r\n", "\n").split("\n")) if x.strip()]
+    olines = o.replace("\r\n", "\n").split("\n")
+    lo = [(i + 1, len(x.strip())) for i, x in enumerate(olines) if x.strip()]
     lw = [len(x.strip()) for x in tekst.split("\n") if x.strip()]
     if len(lw) == len(lo):
         return
     if len(lw) > len(lo):
         print("INFO: wynik %s ma wiecej linii z trescia niz oryginal (%d wobec %d) - mozliwy podzial linii" % (nazwa, len(lw), len(lo)))
         return
+    if len(lo) - len(lw) == SCALONE_OK.get(nazwa, -1):
+        return                                              # same koncowki zdan doklejone przez DeepL (zaakceptowane przy skladaniu dlugich linii)
     idx = _pominiete_akapity([l for _, l in lo], lw)
     if idx is None:
         problemy.append("KONTROLA: wynik %s ma mniej linii z trescia niz oryginal (%d wobec %d) - DeepL mogl pominac akapity (nie udalo sie ustalic ktore)"
                         % (nazwa, len(lw), len(lo)))
         return
-    duze = ["%d (%d zn.)" % lo[i] for i in idx if lo[i][1] > krotko]
-    male = [str(lo[i][0]) for i in idx if lo[i][1] <= krotko]
+    kon = [i for i in idx if _koncowka_zdania(olines, lo[i][0] - 1)]       # krotkie koncowki zawinietych zdan: DeepL dokleja je do poprzedniej linii
+    duze = ["%d (%d zn.)" % lo[i] for i in idx if lo[i][1] > krotko and i not in kon]
+    male = [str(lo[i][0]) for i in idx if lo[i][1] <= krotko or i in kon]
     if male:
-        print("INFO: w wyniku %s brakuje %d krotkich linii oryginalu (do %d znakow): linie %s" % (nazwa, len(male), krotko, ", ".join(male[:10])))
+        print("INFO: w wyniku %s brakuje %d krotkich linii oryginalu (do %d znakow lub koncowek zdan doklejonych do poprzedniej linii): linie %s" % (nazwa, len(male), krotko, ", ".join(male[:10])))
     if duze:
         problemy.append("KONTROLA: w wyniku %s brakuje %d akapitow oryginalu (DeepL je pominal lub scalil z sasiednia linia - zweryfikuj tlumaczeniem pliku pomocniczego): linie oryginalu %s" % (nazwa, len(duze), ", ".join(duze[:10])))
 
@@ -833,6 +1056,8 @@ def main():
     ap.add_argument("--bez-kontroli-akapitow", action="store_true",
                     help="wylacz kontrole liczby linii z trescia (wykrywanie akapitow pominietych przez DeepL)")
     ap.add_argument("--bez-poprawek", action="store_true", help="nie stosuj slownika poprawek DeepL (poprawki_deepl.txt) przy zapisie wynikow")
+    ap.add_argument("--bez-czkawki", action="store_true", help="wylacz krok czkawki (podwojone slowa i bledy na WIELKICH LITERACH, porownanie z oryginalem)")
+    ap.add_argument("--czkawka-raport", action="store_true", help="krok czkawki tylko raportuje (bez bezpiecznych autopoprawek)")
     ap.add_argument("--tylko-poprawki", action="store_true",
                     help="tylko zastosuj slownik poprawek DeepL do istniejacych tlumaczen ' pl.txt' w katalogu (bez rozdzielania i sprzatania)")
     ap.add_argument("--sucho", action="store_true", help="z --tylko-poprawki / --tylko-tury-pl: tylko policz, nic nie zapisuj")
@@ -844,6 +1069,7 @@ def main():
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
     reguly = [] if a.bez_poprawek else wczytaj_poprawki()
+    czk_tryb = "wylaczone" if a.bez_czkawki else ("raport" if a.czkawka_raport else "napraw")
     zam_licznik, zam_plikow = collections.Counter(), [0]
     if a.tylko_poprawki:
         return tylko_poprawki(d, reguly, a.sucho)
@@ -931,6 +1157,7 @@ def main():
                 continue
             tekst = zloz_dzielone(tekst, nazwy[nr], d, problemy, out_name)
             tekst, _zl = zastosuj_poprawki(tekst, reguly)
+            tekst = krok_czkawki(tekst, nazwy[nr], d, out_name, czk_tryb)
             if _zl:
                 zam_licznik.update(_zl)
                 zam_plikow[0] += 1
@@ -959,6 +1186,7 @@ def main():
             tekst += "\n" * WIRT[x][3] + TEKSTY_CZESCI[x].strip("\n") + "\n"
         tekst = zloz_dzielone(tekst, orig, d, problemy, out_name)
         tekst, _zl = zastosuj_poprawki(tekst, reguly)
+        tekst = krok_czkawki(tekst, orig, d, out_name, czk_tryb)
         if _zl:
             zam_licznik.update(_zl)
             zam_plikow[0] += 1
@@ -992,6 +1220,7 @@ def main():
             tekst = "".join(k if k.endswith("\n") else k + "\n" for k in kawalki)
         tekst = zloz_dzielone(tekst, orig, d, problemy, out_name)
         tekst, _zl = zastosuj_poprawki(tekst, reguly)
+        tekst = krok_czkawki(tekst, orig, d, out_name, czk_tryb)
         if _zl:
             zam_licznik.update(_zl)
             zam_plikow[0] += 1
@@ -1002,6 +1231,7 @@ def main():
     print("Zapisano plikow:", zapisane, "(UTF-8 bez BOM, konce linii LF)")
     if zam_licznik:
         print("POPRAWKI SLOWNIKOWE: %d zamian w %d plikach (%s)" % (sum(zam_licznik.values()), zam_plikow[0], ", ".join("%s=%d" % kv for kv in zam_licznik.most_common())))
+    podsumuj_czkawke(d, raport_nazwa)
     for p in problemy:
         print("UWAGA:", p)
     if naprawy:   # raport z automatycznego usuwania znakow U+FFFD (tez zapisywany do pliku)
