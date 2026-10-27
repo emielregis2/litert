@@ -67,3 +67,9 @@ rozpnij => rozepnij
 rozpnijcie => rozepnijcie
 gryzij => gryź
 gryzijcie => gryźcie
+
+# Tryb rozkazujacy (skan slow spoza slownika): ssaj to potoczne, nie standardowe; poprawne formy podal Darek (ssij); zacisnij => zaciśnij; formy -cie z analogii (zacisnijcie)
+ssaj => ssij
+ssajcie => ssijcie
+zacisnij => zaciśnij
+zacisnijcie => zaciśnijcie
