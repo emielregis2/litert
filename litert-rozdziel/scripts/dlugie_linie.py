@@ -68,8 +68,9 @@ def dziel_dluga_linie(linia, prog=4000, cel=3000, min_kawalek=1200, min_tura=150
     return kawalki
 
 
-def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
-    """Dzieli linie dluzsza niz 'prog' w KAZDEJ zmianie mowcy: MIEDZY dwoma sasiednimi cudzyslowami ('""' albo typograficzne '”“' / '”„' (takze polskie otwierajace „) - linia konczy sie
+def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None, narracja=True):
+    """(narracja=True: dodatkowo tnie po koncu zdania '.', '!', '?' tuz przed cytatem otwierajacym '"', '“', '„' - spacja jest usuwana.)
+    Dzieli linie dluzsza niz 'prog' w KAZDEJ zmianie mowcy: MIEDZY dwoma sasiednimi cudzyslowami ('""' albo typograficzne '”“' / '”„' (takze polskie otwierajace „) - linia konczy sie
     cudzyslowem, nastepna zaczyna sie cudzyslowem, nic nie jest usuwane) oraz w srodkowej spacji '" "' / '” “' / '” „' (spacja jest usuwana). Zwraca
     (kawalki, odstepy): odstepy to napis dlugosci len(kawalki)-1, 'q' = ciecie miedzy cudzyslowami (laczenie bez niczego), 's' = ciecie na spacji
     (laczenie spacja); laczenie wg odstepow odtwarza linie co do znaku. Odcinek musi miec co najmniej 'min_odc' znakow i co najmniej 2 litery/cyfry
@@ -88,6 +89,8 @@ def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
             kand.append((p + 1, p + 1, "q"))
         elif c == " " and p + 1 < n and linia[p - 1] in ZAMK and d in OTW:
             kand.append((p, p + 1, "s"))
+        elif narracja and c == " " and p + 1 < n and linia[p - 1] in ".!?" and d in OTW:
+            kand.append((p, p + 1, "s"))              # koniec zdania narracji i poczatek wypowiedzi: '. "' / '! „' / '? “' (spacja usuwana)
     pref = [0]                                       # sumy prefiksowe liczby liter/cyfr (liniowo zamiast liczenia dla kazdego kandydata)
     for ch in linia:
         pref.append(pref[-1] + (1 if ch.isalnum() else 0))

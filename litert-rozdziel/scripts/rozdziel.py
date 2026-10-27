@@ -342,14 +342,14 @@ def tylko_poprawki(d, reguly, sucho=False):
     return 0
 
 
-def _tnij_linie_tury(linia):
-    """Tnie jedna linie w KAZDEJ zmianie mowcy: zamykajacy cudzyslow U+201D, tuz po nim (z jedna spacja lub bez) otwierajacy U+201E.
-    Ciecie jest bezwarunkowe (takze gdy cudzyslowy w linii sa niezbilansowane); odcinek musi miec co najmniej 2 litery lub cyfry.
-    Zwraca liste odcinkow (spacja miedzy cudzyslowami jest usuwana)."""
-    if "\u201d" not in linia or "\u201e" not in linia:
+def _tnij_linie_tury(linia, narracja=True):
+    """Tnie jedna linie w KAZDEJ zmianie mowcy: zamykajacy cudzyslow U+201D, tuz po nim (z jedna spacja lub bez) otwierajacy U+201E; przy narracja=True
+    takze po koncu zdania ('.', '!', '?') z jedna spacja tuz przed otwierajacym U+201E (narracja -> wypowiedz). Ciecie jest bezwarunkowe (takze gdy
+    cudzyslowy w linii sa niezbilansowane); odcinek musi miec co najmniej 2 litery lub cyfry. Zwraca liste odcinkow (spacja przed cudzyslowem jest usuwana)."""
+    if "\u201e" not in linia:
         return [linia]
     odc, start = [], 0
-    for m in re.finditer("\u201d ?\u201e", linia):
+    for m in re.finditer("(?:\u201d ?|[.!?] )\u201e" if narracja else "\u201d ?\u201e", linia):
         seg = linia[start:m.start() + 1]
         if len(re.findall(r"[^\W_]", seg)) >= 2:
             odc.append(seg)
@@ -358,7 +358,7 @@ def _tnij_linie_tury(linia):
     return odc
 
 
-def dziel_tury_pl(tekst, tryb="auto"):
+def dziel_tury_pl(tekst, tryb="auto", narracja=True):
     """Postprodukcja: tnie KAZDA linie gotowego tlumaczenia w zmianie mowcy (zamykajacy ” + otwierajacy „). Odcinki rozdziela pusta linia, gdy plik uzywa
     pustych linii miedzy akapitami (co najmniej 25% linii pustych; tryb 'pusta' wymusza), inaczej sama nowa linia (tryb 'nowa'). Zwraca (tekst, liczba_ciec, separator)."""
     crlf = "\r\n" in tekst
@@ -367,7 +367,7 @@ def dziel_tury_pl(tekst, tryb="auto"):
     sep = {"pusta": "\n\n", "nowa": "\n"}.get(tryb) or ("\n\n" if pustych / max(1, len(linie)) >= 0.25 else "\n")
     wyj, ciecia = [], 0
     for l in linie:
-        odc = _tnij_linie_tury(l)
+        odc = _tnij_linie_tury(l, narracja)
         ciecia += len(odc) - 1
         wyj.append(sep.join(odc))
     nowy = "\n".join(wyj)
@@ -396,7 +396,7 @@ def _wypisz_tury(d, szczegoly, seps, sucho=False):
                 fh.write("%6d  %s\n" % (c, f))
 
 
-def postprodukcja_tury(d, wyniki, tryb="auto"):
+def postprodukcja_tury(d, wyniki, tryb="auto", narracja=True):
     """Po udanym sprzataniu: ciecie linii na zmianach mowcy w plikach wynikowych (po kontroli ukladu linii wzgledem oryginalow)."""
     szczegoly, seps = [], set()
     for w in wyniki:
@@ -404,7 +404,7 @@ def postprodukcja_tury(d, wyniki, tryb="auto"):
         if not os.path.isfile(p):
             continue
         t = open(p, "rb").read().decode("utf-8")
-        nowy, c, sep = dziel_tury_pl(t, tryb)
+        nowy, c, sep = dziel_tury_pl(t, tryb, narracja)
         if c:
             seps.add(sep)
             szczegoly.append((w, c))
@@ -413,7 +413,7 @@ def postprodukcja_tury(d, wyniki, tryb="auto"):
     _wypisz_tury(d, szczegoly, seps)
 
 
-def tylko_tury_pl(d, tryb="auto", sucho=False, kopia=None):
+def tylko_tury_pl(d, tryb="auto", sucho=False, kopia=None, narracja=True):
     """Ciecie linii na zmianach mowcy w ISTNIEJACYCH tlumaczeniach ' pl.txt' katalogu (bez spisu i org). kopia: zip z wersjami zmienianych plikow sprzed ciecia."""
     import zipfile
     zf = zipfile.ZipFile(kopia, "w", zipfile.ZIP_DEFLATED) if (kopia and not sucho) else None
@@ -429,7 +429,7 @@ def tylko_tury_pl(d, tryb="auto", sucho=False, kopia=None):
         except UnicodeDecodeError:
             print("POMINIETO (nie jest UTF-8):", f)
             continue
-        nowy, c, sep = dziel_tury_pl(t, tryb)
+        nowy, c, sep = dziel_tury_pl(t, tryb, narracja)
         if c:
             szczegoly.append((f, c))
             seps.add(sep)
@@ -837,6 +837,7 @@ def main():
                     help="tylko zastosuj slownik poprawek DeepL do istniejacych tlumaczen ' pl.txt' w katalogu (bez rozdzielania i sprzatania)")
     ap.add_argument("--sucho", action="store_true", help="z --tylko-poprawki / --tylko-tury-pl: tylko policz, nic nie zapisuj")
     ap.add_argument("--bez-tur-pl", action="store_true", help="NIE tnij linii gotowych tlumaczen w zmianach mowcy (domyslnie po udanym sprzataniu linie sa ciete w ” „)")
+    ap.add_argument("--bez-narracji-pl", action="store_true", help="przy ciecia tur w tlumaczeniach NIE tnij miedzy narracja a wypowiedzia (po '.', '!', '?' przed „); ciecie ” „ zostaje")
     ap.add_argument("--tury-sep", choices=["auto", "pusta", "nowa"], default="auto", help="odstep miedzy odcinkami po ucieciu: auto (pusta linia, gdy plik uzywa pustych linii miedzy akapitami), pusta, nowa")
     ap.add_argument("--tylko-tury-pl", action="store_true", help="tylko tnij linie w zmianach mowcy w istniejacych tlumaczeniach ' pl.txt' katalogu (bez rozdzielania i sprzatania)")
     ap.add_argument("--kopia", default="", help="z --tylko-tury-pl: zapisz w tym zipie wersje zmienianych plikow sprzed ciecia")
@@ -847,7 +848,7 @@ def main():
     if a.tylko_poprawki:
         return tylko_poprawki(d, reguly, a.sucho)
     if a.tylko_tury_pl:
-        return tylko_tury_pl(d, a.tury_sep, a.sucho, a.kopia or None)
+        return tylko_tury_pl(d, a.tury_sep, a.sucho, a.kopia or None, not a.bez_narracji_pl)
     spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
     spis_path = os.path.join(d, spis_nazwa)
     if a.tylko_sprzatanie and not os.path.exists(spis_path) and os.path.exists(os.path.join(d, "org", spis_nazwa)):
@@ -872,7 +873,7 @@ def main():
         print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
         wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, os.path.basename(d) + "_raport_naprawy.txt", a.zachowaj_techniczne)
         if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
-            postprodukcja_tury(d, wyniki, a.tury_sep)
+            postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl)
         return 0
     if not a.bez_zip:   # brakujace przetlumaczone pliki wypakuj z archiwum .zip z DeepL (jesli lezy w katalogu)
         oczek_pl = [pl[:-4] + " pl.txt" for pl in pliki] + [c[:-4] + " pl.txt" for _, cz in podzielone for c in cz]
@@ -1037,7 +1038,7 @@ def main():
             print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
             wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, a.zachowaj_techniczne)
             if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
-                postprodukcja_tury(d, wyniki, a.tury_sep)
+                postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl)
     return 0 if not problemy else 2
 
 
