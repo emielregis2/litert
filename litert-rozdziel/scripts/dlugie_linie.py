@@ -69,8 +69,8 @@ def dziel_dluga_linie(linia, prog=4000, cel=3000, min_kawalek=1200, min_tura=150
 
 
 def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
-    """Dzieli linie dluzsza niz 'prog' w KAZDEJ zmianie mowcy: MIEDZY dwoma sasiednimi cudzyslowami ('""' albo typograficzne '”“' - linia konczy sie
-    cudzyslowem, nastepna zaczyna sie cudzyslowem, nic nie jest usuwane) oraz w srodkowej spacji '" "' / '” “' (spacja jest usuwana). Zwraca
+    """Dzieli linie dluzsza niz 'prog' w KAZDEJ zmianie mowcy: MIEDZY dwoma sasiednimi cudzyslowami ('""' albo typograficzne '”“' / '”„' (takze polskie otwierajace „) - linia konczy sie
+    cudzyslowem, nastepna zaczyna sie cudzyslowem, nic nie jest usuwane) oraz w srodkowej spacji '" "' / '” “' / '” „' (spacja jest usuwana). Zwraca
     (kawalki, odstepy): odstepy to napis dlugosci len(kawalki)-1, 'q' = ciecie miedzy cudzyslowami (laczenie bez niczego), 's' = ciecie na spacji
     (laczenie spacja); laczenie wg odstepow odtwarza linie co do znaku. Odcinek musi miec co najmniej 'min_odc' znakow i co najmniej 2 litery/cyfry
     (nie robimy linii z samego cudzyslowu). Odcinki nadal dluzsze niz 'prog' (brak granic zmiany mowcy) sa dzielone po zdaniach (dziel_dluga_linie).
@@ -79,13 +79,14 @@ def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
         return [linia], ""
     n = len(linia)
     kand = []                                        # (miejsce ciecia, poczatek nastepnego odcinka, rodzaj)
+    ZAMK, OTW = '"\u201d', '"\u201c\u201e'          # zamykajace: prosty, ” ; otwierajace: prosty, “, „ (polska klawiatura)
     for p in range(1, n - 1):
         c, d = linia[p], linia[p + 1]
-        if c == '"' and d == '"' and linia[p - 1] != '"' and (p + 2 >= n or linia[p + 2] != '"'):
+        if c in ZAMK and d in OTW:                    # zamykajacy i otwierajacy tuz obok siebie: ciecie MIEDZY nimi
+            if c == '"' and d == '"' and (linia[p - 1] == '"' or (p + 2 < n and linia[p + 2] == '"')):
+                continue                              # ciagi 3+ prostych cudzyslowow pomijamy
             kand.append((p + 1, p + 1, "q"))
-        elif c == "\u201d" and d == "\u201c":
-            kand.append((p + 1, p + 1, "q"))
-        elif c == " " and p + 1 < n and ((linia[p - 1] == '"' and d == '"') or (linia[p - 1] == "\u201d" and d == "\u201c")):
+        elif c == " " and p + 1 < n and linia[p - 1] in ZAMK and d in OTW:
             kand.append((p, p + 1, "s"))
     pref = [0]                                       # sumy prefiksowe liczby liter/cyfr (liniowo zamiast liczenia dla kazdego kandydata)
     for ch in linia:
@@ -256,7 +257,8 @@ def main():
     ap.add_argument("--zastosuj", action="store_true")
     ap.add_argument("--pliki", default="", help="nazwy oryginalow bez .txt rozdzielone srednikiem (domyslnie wszystkie z dluga linia)")
     ap.add_argument("--prog", type=int, default=4000)
-    ap.add_argument("--dziel-tury", action="store_true", help="tnij w KAZDYM miejscu zmiany mowcy (jak w scal.py --dziel-tury); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
+    ap.add_argument("--dziel-tury", action="store_true", help="(DOMYSLNIE WLACZONE, flaga zachowana dla zgodnosci) tnij w KAZDYM miejscu zmiany mowcy")
+    ap.add_argument("--bez-tur", action="store_true", help="NIE tnij na zmianach mowcy (przy --zastosuj uzyj tych samych flag co przy --przygotuj)")
     ap.add_argument("--min-odcinek", type=int, default=0, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (domyslnie 0 = ciecie w kazdej granicy)")
     ap.add_argument("--ciecie-po", type=int, default=0, help="po osiagnieciu tylu znakow tnij na najblizszej kropce (jak w scal.py --ciecie-po); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
     ap.add_argument("--limit-linii", type=int, default=800, help="twardy limit dlugosci kawalka w znakach (domyslnie 800, jak w scal.py --limit-linii; 0 = wylaczone); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
@@ -282,7 +284,7 @@ def main():
         print("BLAD: --linie wymaga dokladnie jednego pliku w --pliki")
         return 1
     sufiks = "_petle" if a.petle else ("_linie" if linie else "")
-    pliki, pominiete = zbierz_plan(d, a.prog, nazwy, a.dziel_tury, a.min_odcinek, a.ciecie_po, a.limit_linii, a.petle, linie)
+    pliki, pominiete = zbierz_plan(d, a.prog, nazwy, not a.bez_tur, a.min_odcinek, a.ciecie_po, a.limit_linii, a.petle, linie)
     for b, powod in pominiete:
         print("POMINIETO %s: %s" % (b, powod))
     for nz in sorted(nazwy - {p["baza"].lower() for p in pliki} - {b.lower() for b, _ in pominiete}):

@@ -260,8 +260,8 @@ def dziel_dluga_linie(linia, prog=4000, cel=3000, min_kawalek=1200, min_tura=150
 
 
 def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
-    """Dzieli linie dluzsza niz 'prog' w KAZDEJ zmianie mowcy: MIEDZY dwoma sasiednimi cudzyslowami ('""' albo typograficzne '”“' - linia konczy sie
-    cudzyslowem, nastepna zaczyna sie cudzyslowem, nic nie jest usuwane) oraz w srodkowej spacji '" "' / '” “' (spacja jest usuwana). Zwraca
+    """Dzieli linie dluzsza niz 'prog' w KAZDEJ zmianie mowcy: MIEDZY dwoma sasiednimi cudzyslowami ('""' albo typograficzne '”“' / '”„' (takze polskie otwierajace „) - linia konczy sie
+    cudzyslowem, nastepna zaczyna sie cudzyslowem, nic nie jest usuwane) oraz w srodkowej spacji '" "' / '” “' / '” „' (spacja jest usuwana). Zwraca
     (kawalki, odstepy): odstepy to napis dlugosci len(kawalki)-1, 'q' = ciecie miedzy cudzyslowami (laczenie bez niczego), 's' = ciecie na spacji
     (laczenie spacja); laczenie wg odstepow odtwarza linie co do znaku. Odcinek musi miec co najmniej 'min_odc' znakow i co najmniej 2 litery/cyfry
     (nie robimy linii z samego cudzyslowu). Odcinki nadal dluzsze niz 'prog' (brak granic zmiany mowcy) sa dzielone po zdaniach (dziel_dluga_linie).
@@ -270,13 +270,14 @@ def dziel_na_turach(linia, prog=4000, min_odc=0, prog_tur=None):
         return [linia], ""
     n = len(linia)
     kand = []                                        # (miejsce ciecia, poczatek nastepnego odcinka, rodzaj)
+    ZAMK, OTW = '"\u201d', '"\u201c\u201e'          # zamykajace: prosty, ” ; otwierajace: prosty, “, „ (polska klawiatura)
     for p in range(1, n - 1):
         c, d = linia[p], linia[p + 1]
-        if c == '"' and d == '"' and linia[p - 1] != '"' and (p + 2 >= n or linia[p + 2] != '"'):
+        if c in ZAMK and d in OTW:                    # zamykajacy i otwierajacy tuz obok siebie: ciecie MIEDZY nimi
+            if c == '"' and d == '"' and (linia[p - 1] == '"' or (p + 2 < n and linia[p + 2] == '"')):
+                continue                              # ciagi 3+ prostych cudzyslowow pomijamy
             kand.append((p + 1, p + 1, "q"))
-        elif c == "\u201d" and d == "\u201c":
-            kand.append((p + 1, p + 1, "q"))
-        elif c == " " and p + 1 < n and ((linia[p - 1] == '"' and d == '"') or (linia[p - 1] == "\u201d" and d == "\u201c")):
+        elif c == " " and p + 1 < n and linia[p - 1] in ZAMK and d in OTW:
             kand.append((p, p + 1, "s"))
     pref = [0]                                       # sumy prefiksowe liczby liter/cyfr (liniowo zamiast liczenia dla kazdego kandydata)
     for ch in linia:
@@ -384,7 +385,8 @@ def main():
                          "a rozdziel sklada je z powrotem po tlumaczeniu; DeepL traci jakosc na bardzo dlugich liniach)")
     ap.add_argument("--prog-linii", type=int, default=4000, help="od ilu znakow linia jest dzielona na kawalki (domyslnie 4000)")
     ap.add_argument("--dziel-tury", action="store_true",
-                    help="linie tnij w KAZDEJ zmianie mowcy: miedzy dwoma cudzyslowami (\"\" lub typograficzne) i w srodkowej spacji w \" \" - kazda linia, niezaleznie od dlugosci (--prog-tury), a nie tylko dlugie w preferowanych miejscach")
+                    help="(DOMYSLNIE WLACZONE - flaga zachowana dla zgodnosci; --bez-tur wylacza) linie tnij w KAZDEJ zmianie mowcy: miedzy dwoma cudzyslowami (\"\" lub typograficzne) i w srodkowej spacji w \" \" - kazda linia, niezaleznie od dlugosci (--prog-tury), a nie tylko dlugie w preferowanych miejscach")
+    ap.add_argument("--bez-tur", action="store_true", help="NIE tnij linii na zmianach mowcy (stare zachowanie: tylko limit linii)")
     ap.add_argument("--min-odcinek", type=int, default=0, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (domyslnie 0 = ciecie w kazdej granicy)")
     ap.add_argument("--prog-tury", type=int, default=0, help="z --dziel-tury: od jakiej dlugosci linii ciac na zmianach mowcy (domyslnie 0 = kazda linia)")
     ap.add_argument("--ciecie-po", type=int, default=0,
@@ -457,7 +459,7 @@ def main():
         if not a.bez_dzielenia:                       # bardzo dlugie linie -> kawalki na granicach zdan (spacja -> nowa linia, rozmiar bez zmian)
             dz, nowe_l, odst = [], [], {}
             for j, l in enumerate(txt.split("\n")[:-1]):
-                if a.dziel_tury:
+                if not a.bez_tur:
                     ch, sp = dziel_na_turach(l, a.prog_linii, a.min_odcinek, a.prog_tury)
                 else:
                     ch = dziel_dluga_linie(l, a.prog_linii)
