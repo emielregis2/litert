@@ -204,6 +204,18 @@ def _kawalki_dokladne(l, k):
     return [len(x.strip()) for x in kaw] if len(kaw) == k else None
 
 
+def _dlugosci_oczekiwane(lo, k_dla):
+    """Oczekiwane dlugosci niepustych kawalkow oryginalu (dokladne dla dlugich linii podzielonych przy scalaniu, gdy sie da; inaczej rowny podzial)."""
+    ex = []
+    for j, l in enumerate(lo):
+        if not l.strip():
+            continue
+        k = k_dla.get(j, 1)
+        dok = _kawalki_dokladne(l, k) if k > 1 else None
+        ex.extend(dok if dok else [len(l.strip()) / k] * k)
+    return ex
+
+
 def _scalone_koncowki(lo, k_dla, lw, bw=None):
     """Dopasowanie ukladu oryginalu do wyniku, gdy DeepL (1) DOKLEIL krotkie koncowki zdan do poprzedniego kawalka albo (2) ROZDZIELIL jedna linie na dwie.
     Zwraca (zbior doklejonych kawalkow jako pary (indeks linii oryginalu, numer kawalka), lista indeksow linii wyniku j do zlaczenia z linia j+1) albo None.
@@ -222,7 +234,7 @@ def _scalone_koncowki(lo, k_dla, lw, bw=None):
         dok = _kawalki_dokladne(l, k)
         if dok:
             for c, dlc in enumerate(dok):
-                ex.append((dlc, dlc <= 30 and (c > 0 or _poprzednia_w_pol_zdania(lo, j)), (j, c)))
+                ex.append((dlc, dlc <= 60 and (c > 0 or (j > 0 and bool(lo[j - 1].strip()))), (j, c)))
             continue
         hm = _POCZATEK_KONCOWKI.match(l) if _poprzednia_w_pol_zdania(lo, j) else None
         if hm:
@@ -329,6 +341,15 @@ def zloz_dzielone(tekst, orig, d, problemy, etykieta):
                     print("   zlaczone linie rozdzielone przez DeepL: %s: %d" % (etykieta, len(spl)))
                 SCALONE_OK[etykieta] = sum(1 for (j, c) in sk if k_dla.get(j, 1) == 1)      # tylko calkiem usuniete linie zmniejszaja liczbe linii wyniku
                 print("   doklejone koncowki zdan (DeepL scalil z poprzednia linia, tresc zachowana): %s: %d" % (etykieta, len(sk)))
+    if not skip and [bool(x.strip()) for x in wyn] != oczek:      # te same liczby niepustych linii, a inny uklad pustych: DeepL dolozyl lub usunal puste linie -> przywroc uklad z oryginalu
+        nb = [x for x in wyn if x.strip()]
+        if len(nb) == sum(oczek):
+            ex = _dlugosci_oczekiwane(lo, k_dla)
+            zle = sum(1 for x, e in zip(nb, ex) if e >= 60 and not 0.55 <= len(x.strip()) / e <= 2.2)
+            if zle <= max(1, sum(1 for e in ex if e >= 60) // 100):
+                it = iter(nb)
+                wyn = [next(it) if b else "" for b in oczek]
+                print("   przywrocono uklad pustych linii (DeepL dolozyl lub usunal puste linie): %s" % etykieta)
     if [bool(x.strip()) for x in wyn] != oczek:
         problemy.append("%s: NIE zlozono dlugich linii (podzielonych przy scalaniu): uklad linii wyniku (%d) nie zgadza sie z oczekiwanym (%d) - DeepL mogl scalic lub pominac linie"
                         % (etykieta, len(wyn), len(oczek)))
