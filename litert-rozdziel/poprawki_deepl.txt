@@ -52,3 +52,8 @@ wylizujcie => wyliżcie
 # Rozkaznik NIEDOKONANY od "wytryskiwac" (wytryskuj to POPRAWNE slowo, ale Darek chce formy dokonanej, jak przy wytryskaj): decyzja Darka; forma z -cie z analogii
 wytryskuj => wytryśnij
 wytryskujcie => wytryśnijcie
+
+# Czas przeszly od "piescic" (DeepL daje pieszczili zamiast piescili): zgloszone przez Darka (skan: 60 trafien w 53 plikach); formy z -smy/-scie (7 trafien dla -smy) z analogii
+pieszczili => pieścili
+pieszcziliśmy => pieściliśmy
+pieszcziliście => pieściliście
