@@ -80,3 +80,43 @@ mamusiowa => mamusi
 mamusiowej => mamusi
 mamusiową => mamusi
 mamusiowych => mamusi
+
+
+# Zgloszone przez Darka (2026-10-28), po przegladzie korpusu (6634 tlumaczen). Formy nieistniejace lub bledne w kontekscie; reguly frazowe dbaja o zgodnosc rodzaju. Kolejnosc ma znaczenie (frazy przed regulami ogolnymi).
+# figi: DeepL daje figowek/figowki zamiast fig/figi (korpus: 21 + 1 trafien, same bielizna)
+figówek => fig
+figówki => figi
+# usadowic: DeepL daje usadownimy (5 trafien, wszystkie "usadownimy sie wygodniej")
+usadownimy => usadowimy
+# muchołapka: DeepL gubi "l" (1 trafienie) albo rozbija wyraz (0 trafien w korpusie)
+mucholapka => muchołapka
+mucho łapka => muchołapka
+# rzadzic: w korpusie 2/2 trafienia to "zaczely sie rzadzic" => "zaczely byc rzadsze" (zgodna skladnia); regula ogolna zgodnie z polecenim Darka
+się rzadzić => być rzadsze
+rzadzić => rzadsze
+# wirowa: POPRAWNY przymiotnik ("pompa wirowa"), ale w korpusie 3/3 trafienia to bledne "wiruje" (mu, wokol) - dlatego tylko frazy
+wirowa mu => wiruje mu
+wirowa wokół => wiruje wokół
+# pożądać: pozadaje (24 trafienia; zgloszone przez Darka); pozadac bez "c" na koncu (16 trafien; dopisane z przegladu, niezgloszone)
+pożądaje => pożąda
+pożądac => pożądać
+# łono: DeepL daje lonowka/lonowke/lonowki/lone zamiast lono (korpus: 39 trafien). Przymiotnik przed rzeczownikiem zmienia rodzaj (zenski -> nijaki): frazy PRZED regulami ogolnymi.
+czarna, gęsta krzakowata łonówka była mokra => czarne, gęste krzakowate łono było mokre
+swoją ogoloną łonówkę => swoje ogolone łono
+swoją wygoloną łonówkę => swoje wygolone łono
+ogoloną łonówkę => ogolone łono
+wygoloną łonówkę => wygolone łono
+owłosioną łonówkę => owłosione łono
+nagą łonówkę => nagie łono
+gotową łonówkę => gotowe łono
+wygolona łonówka => wygolone łono
+wygoloną, owłosioną łonę => wygolone, owłosione łono
+wygoloną łonę => wygolone łono
+mokrą łonę => mokre łono
+moją łonę => moje łono
+łonówki uderzającej => łona uderzającego
+łonówkę => łono
+łonówki => łona
+łonówka => łono
+łonę => łono
+# BEZ regul (do decyzji Darka): "lonow" (1 trafienie: "owocem jego lonow") i "lonowek" (2 trafienia: "faktura moich lonowek") - nieznane znaczenie.
