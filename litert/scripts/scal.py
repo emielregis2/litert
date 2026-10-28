@@ -3,12 +3,23 @@
 
 Uzycie:  python scal.py "C:\\sciezka\\do\\KATALOG" [--limit 900000]
 """
-import os, sys, glob, argparse
+import os, re, sys, glob, argparse
 
 try:  # nazwy plikow z polskimi/specjalnymi znakami nie moga wywrocic wypisywania na konsole
     sys.stdout.reconfigure(errors="replace")
 except Exception:
     pass
+
+
+# TWARDA ZASADA (decyzja Darka): pliki juz przetlumaczone na polski (nazwa przed .txt konczy sie dopiskiem 'pl') NIGDY nie sa scalane
+# ani analizowane jako oryginaly: 'X pl.txt', 'X  pl.txt' (podwojna spacja), 'X_pl.txt', 'X-pl.txt', 'X.pl.txt', 'X PL.txt', 'X pl (1).txt'.
+_PL_RX = re.compile(r"(^|[\s_.\-])pl(\s*\(\d+\))?\s*$", re.I)
+
+
+def jest_tlumaczeniem_pl(nazwa):
+    """True, gdy nazwa pliku (z .txt lub bez) wskazuje na wersje przetlumaczona na polski (koncowka 'pl' po spacji, '_', '-' lub '.')."""
+    baza = nazwa[:-4] if nazwa.lower().endswith(".txt") else nazwa
+    return bool(_PL_RX.search(baza.rstrip()))
 
 
 def czytaj_plik(path):
@@ -101,7 +112,7 @@ def analizuj_kopie(d, zastepuj=True):
     kopie = []
     for f in pliki.values():
         m = rx.match(f)
-        if m:
+        if m and not jest_tlumaczeniem_pl(m.group(1)):          # kopie plikow ' pl' (tlumaczen) tez pomijamy
             kopie.append((f, m.group(1) + m.group(3), int(m.group(2))))
     if not kopie:
         return []
@@ -425,7 +436,7 @@ def main():
             return False
         if low.startswith(base.lower()) or low == spis_name.lower():
             return False
-        if low[:-4].rstrip().endswith(" pl"):   # wersje tlumaczone
+        if jest_tlumaczeniem_pl(f):             # TWARDA ZASADA: wersje przetlumaczone na polski (' pl') nigdy nie sa scalane
             return False
         if "_copy(" in low:                      # kopie tworzone przez Dropbox/edytor
             return False
@@ -441,6 +452,7 @@ def main():
         return m and (m.group(1) + ".txt").lower() in all_txt and (m.group(1) + ".txt").lower() != f.lower()
     stare_czesci = [f for f in cands if czesc_z(f)]
     names = [f for f in cands if f not in stare_czesci]
+    assert not any(jest_tlumaczeniem_pl(n) for n in names), "plik z koncowka ' pl' nie moze trafic do scalania"
     items, duze, ostrz_kod, kodowania, skrocone = [], [], [], {}, {}
     dzielone_linie, odstepy_linii = {}, {}
     for n in names:

@@ -10,7 +10,7 @@ Skill powtarza dokładnie procedurę ustaloną z Darkiem na katalogach `WALTER18
 ## Zasady (ustalone, nie pytaj o nie ponownie)
 
 1. **Które pliki:** tylko oryginały `.txt` z katalogu (bez podkatalogów). Pomijamy:
-   - pliki, których nazwa (przed `.txt`) kończy się na ` pl` (wersje tłumaczone, np. `Dad's Request pl.txt`; uwaga na podwójną spację, np. `Eric's Mom  pl.txt`),
+   - **TWARDA ZASADA: NIGDY nie scalamy plików z dopiskiem `pl` (już przetłumaczonych na polski).** Dotyczy każdego pliku, którego nazwa (przed `.txt`) kończy się na `pl` po spacji, `_`, `-` lub `.` (wielkość liter bez znaczenia; opcjonalnie z `(N)` na końcu), np. `Dad's Request pl.txt`, `Eric's Mom  pl.txt` (podwójna spacja), `X_pl.txt`, `X PL.txt`, `X pl (1).txt`. Takie pliki nie są też analizowane jako oryginały, tak samo ich kopie (`X pl_copy(1).txt`), a skrypt ma dodatkowe zabezpieczenie (asercja), które przerwałoby scalanie, gdyby taki plik jednak trafił na listę. Wyjątku nie ma: gdy w nazwie jest `pl`, to jest tłumaczenie, nie oryginał (jeśli prawdziwy angielski tytuł kończy się na ` PL`, trzeba go przemianować),
    - kopie z `_copy(` w nazwie (np. `..._copy(1).txt`, powstają przy zapisie przez Dropbox/edytor); nie są scalane, ale PRZED scaleniem są analizowane względem oryginałów (pkt 10),
    - własne pliki scalenia (`NazwaKatalogu_all*.txt`) i plik spisu (`NazwaKatalogu_spis_scalenia.txt`).
 2. **Kolejność:** wewnątrz każdego pliku scalenia pliki idą alfabetycznie (bez rozróżniania wielkości liter). O przydziale do konkretnego pliku scalenia decyduje jednak rozmiar, nie alfabet (patrz pkt 4).
