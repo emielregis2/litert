@@ -20,7 +20,7 @@ Pojedyncze znaki zastepcze U+FFFD w tlumaczeniu (uszkodzone przez DeepL) sa usuw
 Brakujace przetlumaczone pliki skrypt sam wypakowuje z archiwum .zip lezacego w katalogu (np. "DeepL Translations ... .zip"),
 tylko te brakujace, bez nadpisywania; wylaczenie: --bez-zip.
 
-Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10]
+Uzycie:  python rozdziel.py "C:\\sciezka\\KATALOG" [--nie-nadpisuj] [--bez-org] [--bez-zip] [--max-fffd 10]
                                                          [--zachowaj-techniczne] [--tylko-sprzatanie] [--min-ciag 60]
                                                          [--bez-poprawek] [--tylko-poprawki [--sucho]]
                                                          [--bez-kontroli-akapitow]
@@ -595,6 +595,23 @@ def postprodukcja_tury(d, wyniki, tryb="auto", narracja=True):
     _wypisz_tury(d, szczegoly, seps)
 
 
+def zabezpiecz_istniejace_wyniki(d, wyniki):
+    """Nadpisywanie wynikow jest domyslne. Zanim cokolwiek zapiszemy, stare wersje ISTNIEJACYCH wynikow trafiaja do zipa w Downloads
+    (Katalog_przed_nadpisaniem_RRRR-MM-DD_GGMMSS.zip), zeby reczne poprawki nie przepadly. Zwraca sciezke zipa albo None."""
+    import datetime, zipfile
+    ist = [w for w in wyniki if os.path.isfile(os.path.join(d, w))]
+    if not ist:
+        return None
+    dl = os.path.join(os.path.expanduser("~"), "Downloads")
+    os.makedirs(dl, exist_ok=True)
+    zp = os.path.join(dl, "%s_przed_nadpisaniem_%s.zip" % (os.path.basename(os.path.normpath(d)), datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")))
+    with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
+        for w in ist:
+            z.write(os.path.join(d, w), w)
+    print("NADPISYWANIE (domyslne): %d istniejacych wynikow zostanie zastapionych; ich stare wersje zachowano w %s (aby nie nadpisywac: --nie-nadpisuj)" % (len(ist), zp))
+    return zp
+
+
 _AK_MOD = [None]
 
 
@@ -1161,7 +1178,8 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
-    ap.add_argument("--nadpisz", action="store_true", help="nadpisz istniejace pliki wynikowe")
+    ap.add_argument("--nadpisz", action="store_true", help="(domyslne; zachowane dla zgodnosci) nadpisuj istniejace pliki wynikowe; ich stare wersje trafiaja najpierw do zipa w Downloads")
+    ap.add_argument("--nie-nadpisuj", action="store_true", help="NIE nadpisuj istniejacych plikow wynikowych: pomijaj je i zglaszaj (stare zachowanie sprzed 2026-10-28)")
     ap.add_argument("--bez-org", action="store_true", help="nie przenos plikow zrodlowych do podkatalogu org")
     ap.add_argument("--bez-zip", action="store_true", help="nie uzupelniaj brakujacych tlumaczen z archiwow .zip w katalogu")
     ap.add_argument("--max-fffd", type=int, default=10,
@@ -1189,6 +1207,7 @@ def main():
     ap.add_argument("--akapity-wymus", action="store_true", help="lacz zawiniete bloki takze w plikach, ktore nie przekraczaja progu 30%% (domyslnie takie pliki sa pomijane)")
     ap.add_argument("--tylko-akapity", action="store_true", help="tylko lacz twardo zawiniete linie w akapity w istniejacych tlumaczeniach ' pl.txt' katalogu (z --sucho: tylko policz)")
     a = ap.parse_args()
+    a.nadpisz = not a.nie_nadpisuj        # od 2026-10-28 nadpisywanie jest domyslne
     d = os.path.normpath(a.katalog)
     reguly = [] if a.bez_poprawek else wczytaj_poprawki()
     czk_tryb = "wylaczone" if a.bez_czkawki else ("raport" if a.czkawka_raport else "napraw")
@@ -1230,6 +1249,8 @@ def main():
     if not a.bez_zip:   # brakujace przetlumaczone pliki wypakuj z archiwum .zip z DeepL (jesli lezy w katalogu)
         oczek_pl = [pl[:-4] + " pl.txt" for pl in pliki] + [c[:-4] + " pl.txt" for _, cz in podzielone for c in cz]
         uzupelnij_z_zip(d, oczek_pl)
+    if a.nadpisz:               # nadpisywanie jest domyslne: stare wyniki (jesli sa) trafiaja najpierw do zipa w Downloads
+        zabezpiecz_istniejace_wyniki(d, oczekiwane_pliki(nazwy, pliki, podzielone)[1])
     problemy, zapisane = [], 0
     TEKSTY_CZESCI = {}                         # nr czesci duzego pliku -> przetlumaczony tekst (skladane po przejrzeniu calej serii)
     naprawy = []                                                   # usuniete znaki U+FFFD (do raportu)
@@ -1279,7 +1300,7 @@ def main():
             out_name = nazwy[nr][:-4] + " pl.txt"
             out_path = os.path.join(d, out_name)
             if os.path.exists(out_path) and not a.nadpisz:
-                problemy.append("POMINIETO (plik juz istnieje, uzyj --nadpisz): " + out_name)
+                problemy.append("POMINIETO (plik juz istnieje; uruchomiono z --nie-nadpisuj): " + out_name)
                 continue
             tekst = zloz_dzielone(tekst, nazwy[nr], d, problemy, out_name)
             tekst, _zl = zastosuj_poprawki(tekst, reguly)
@@ -1305,7 +1326,7 @@ def main():
                             % (out_name, ", ".join(str(WIRT[x][1]) for x in brak), m_, ", ".join(str(x) for x in brak)))
             continue
         if os.path.exists(out_path) and not a.nadpisz:
-            problemy.append("POMINIETO (plik juz istnieje, uzyj --nadpisz): " + out_name)
+            problemy.append("POMINIETO (plik juz istnieje; uruchomiono z --nie-nadpisuj): " + out_name)
             continue
         tekst = TEKSTY_CZESCI[nrs[0]].strip("\n") + "\n"
         for x in nrs[1:]:
@@ -1330,7 +1351,7 @@ def main():
             problemy.append("%s: nie zlozono - BRAK przetlumaczonych czesci: %s" % (out_name, ", ".join(brak)))
             continue
         if os.path.exists(out_path) and not a.nadpisz:
-            problemy.append("POMINIETO (plik juz istnieje, uzyj --nadpisz): " + out_name)
+            problemy.append("POMINIETO (plik juz istnieje; uruchomiono z --nie-nadpisuj): " + out_name)
             continue
         kawalki = []
         for c in pl_czesci:

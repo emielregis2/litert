@@ -17,7 +17,7 @@ Dopełnienie skilla `litert`. Cały proces Darka: angielskie pliki → scalenie 
 ## Zasady
 
 1. Każdy plik wynikowy dostaje **oryginalną angielską nazwę ze spisu + ` pl`**, np. spis: `7. Dad's Request.txt` → `Dad's Request pl.txt`. Zapis: UTF-8, końce linii `\n`, treść bez znacznika.
-2. **Nie nadpisujemy istniejących plików.** Jeśli `X pl.txt` już istnieje, pomijamy go i zgłaszamy; nadpisanie tylko na wyraźne polecenie Darka (flaga `--nadpisz`).
+2. **Istniejące pliki wynikowe są domyślnie nadpisywane** (decyzja Darka z 2026-10-28; wcześniej było odwrotnie). Flaga `--nadpisz` jest więc domyślna (zostaje tylko dla zgodności), a do dawnego zachowania (pomijaj i zgłaszaj istniejące `X pl.txt`) służy `--nie-nadpisuj`. Zabezpieczenie: zanim `rozdziel` cokolwiek nadpisze, kopiuje stare wersje istniejących wyników do zipa `Downloads\<Katalog>_przed_nadpisaniem_<data>.zip`. UWAGA: po ręcznych poprawkach w wynikach (pętle, podwojenia) nie uruchamiaj ponownie pełnego `rozdziel`, bo nadpisze je tłumaczeniem z DeepL; użyj `--tylko-sprzatanie`.
 3. Skrypt **weryfikuje**: czy istnieją wszystkie przetłumaczone pliki scalenia, czy każdy numer ze spisu ma znacznik, czy nie ma nadmiarowych lub zdublowanych znaczników i czy przed pierwszym znacznikiem nie ma tekstu. Pliku, którego znacznika brakuje, NIE zgadujemy: zgłaszamy go w podsumowaniu.
 4. Oryginałów nigdy nie kasujemy. Pliki techniczne kasuje wyłącznie sprzątanie po pozytywnej kontroli kompletności (zasada 6). Treści tłumaczeń nie czytaj ani nie analizuj, to operacja mechaniczna.
 5. **Składanie części dużych plików:** w nowym formacie części dużego pliku leżą w różnych tłumaczeniach serii (każda ma własny znacznik; spis podaje numer części, liczbę części i `przerwę`). Skrypt zbiera je ze wszystkich `NazwaKatalogu_all_N pl.txt` i skleja w kolejności części, wstawiając między nimi tyle pustych linii, ile mówi `przerwa`, w jeden plik `Nazwa pl.txt` (dopiero potem składa podzielone długie linie i stosuje słownik). **Jeśli brakuje którejkolwiek części, niczego nie zapisuje** i wypisuje `BRAK czesci K z M (numery znacznikow ...)` (zwykle brakuje któregoś pliku serii). W starym formacie (sekcja "Pliki podzielone") skleja przetłumaczone części `Nazwa_1 pl.txt` + `Nazwa_2 pl.txt` + … tak jak dotąd.
@@ -40,7 +40,7 @@ Przetłumaczone pliki zawierają polskie znaki diakrytyczne (ą ć ę ł ń ó �
 - wykryto typowe ślady zepsutych znaków (np. `Å‚`, `Ä…`, `Ăł`, znak zastępczy U+FFFD; pojedyncze U+FFFD są jednak najpierw usuwane automatycznie, zasada 8),
 - w pliku nie ma żadnego polskiego znaku (tłumaczenie mogło się nie udać albo znaki zostały wycięte).
 
-Przy takim ostrzeżeniu NIE naprawiaj tekstu "na oko". Poproś Darka o ponowne zapisanie/pobranie tłumaczenia z DeepL jako UTF-8 i powtórz rozdzielanie z `--nadpisz`.
+Przy takim ostrzeżeniu NIE naprawiaj tekstu "na oko". Poproś Darka o ponowne zapisanie/pobranie tłumaczenia z DeepL jako UTF-8 i powtórz rozdzielanie (nadpisywanie jest domyślne).
 
 ## Gdy kontrola zgłasza pętle DeepL (długi ciąg tego samego znaku)
 

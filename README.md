@@ -44,7 +44,7 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 
 - granice wyznacza wyłącznie numer ze znacznika (nazwa mogła zostać przetłumaczona),
 - nazwy plików wynikowych pochodzą ze spisu,
-- nie nadpisuje istniejących plików (flaga `--nadpisz`),
+- **domyślnie nadpisuje istniejące pliki wynikowe** (od 2026-10-28), ale najpierw zapisuje ich stare wersje w zipie `Downloads\<Katalog>_przed_nadpisaniem_<data>.zip`; flaga `--nie-nadpisuj` przywraca dawne zachowanie (pomijanie i zgłaszanie),
 - zgłasza brakujące, zdublowane i nadmiarowe znaczniki; nie zapisuje pliku, który mógłby się skleić z sąsiednim,
 - brakujące przetłumaczone pliki wypakowuje sam z archiwum `.zip` z DeepL leżącego w katalogu (tylko brakujące, bez nadpisywania; wyłączane flagą `--bez-zip`),
 - pojedyncze uszkodzone znaki U+FFFD zwrócone przez DeepL usuwa z wyniku automatycznie, z raportem (sekcja `NAPRAWA U+FFFD` i plik `..._raport_naprawy.txt`); do `--max-fffd` na plik (domyślnie 10), więcej to ostrzeżenie,
@@ -56,7 +56,7 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 - składa przetłumaczone części dużych plików (`Nazwa_1 pl.txt`, `Nazwa_2 pl.txt`, ...) w jeden `Nazwa pl.txt` według sekcji "Pliki podzielone" ze spisu; gdy brakuje którejś części, nie składa pliku i to zgłasza. Puste linie na granicach części są zapisywane w spisie (`przerwa N`) i przywracane przy składaniu, bo DeepL przycina puste linie na początku pliku.
 
 ```
-python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne]
+python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nie-nadpisuj] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne]
                                           [--tylko-sprzatanie] [--min-ciag 60] [--bez-poprawek] [--bez-czkawki] [--czkawka-raport]
                                           [--bez-tur-pl] [--bez-narracji-pl] [--tury-sep auto|pusta|nowa] [--tylko-tury-pl [--sucho] [--kopia plik.zip]]
                                           [--bez-akapitow] [--akapity-wymus] [--tylko-akapity [--sucho] [--kopia plik.zip]]
