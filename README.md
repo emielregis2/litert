@@ -10,7 +10,7 @@ NazwaKatalogu_all_N.txt  +  NazwaKatalogu_spis_scalenia.txt
         │  tłumaczenie ręczne w aplikacji DeepL (wynik: "... pl.txt" albo zip z DeepL)
         ▼
 NazwaKatalogu_all_N pl.txt
-        │  litert-rozdziel   (rozcięcie po znacznikach, składanie linii, słownik, czkawka, kontrola, cięcie tur)
+        │  litert-rozdziel   (rozcięcie po znacznikach, składanie linii, słownik, czkawka, kontrola, akapity, cięcie tur)
         ▼
 Oryginalna Nazwa pl.txt
 ```
@@ -50,6 +50,7 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 - pojedyncze uszkodzone znaki U+FFFD zwrócone przez DeepL usuwa z wyniku automatycznie, z raportem (sekcja `NAPRAWA U+FFFD` i plik `..._raport_naprawy.txt`); do `--max-fffd` na plik (domyślnie 10), więcej to ostrzeżenie,
 - składa z powrotem linie pocięte przy scalaniu, także gdy DeepL skleił końcówki zdań, rozdzielił linię albo dołożył puste linie (sekcje poniżej),
 - stosuje słownik poprawek DeepL i krok czkawki (podwojone słowa, błędy na wielkich literach),
+- składa twardo zawinięte linie w akapity (sekcja "Twardo zawinięte linie → akapity"),
 - po udanym i kompletnym rozdzieleniu po kontroli kompletności (wyniki zapisane, niepuste, bez znaczników, bez pętli DeepL, nieucięte) przenosi oryginały do podkatalogu `org` i **kasuje pliki techniczne** (pliki scalenia i ich tłumaczenia, spis, części dużych plików i ich tłumaczenia, archiwum `.zip` zawierające wyłącznie tłumaczenia tej partii); wyłączane flagą `--bez-org`, a `--zachowaj-techniczne` przenosi je do `org` zamiast kasować,
 - na samym końcu tnie linie tłumaczenia na zmianach mówcy (sekcja "Cięcie linii"),
 - składa przetłumaczone części dużych plików (`Nazwa_1 pl.txt`, `Nazwa_2 pl.txt`, ...) w jeden `Nazwa pl.txt` według sekcji "Pliki podzielone" ze spisu; gdy brakuje którejś części, nie składa pliku i to zgłasza. Puste linie na granicach części są zapisywane w spisie (`przerwa N`) i przywracane przy składaniu, bo DeepL przycina puste linie na początku pliku.
@@ -58,6 +59,7 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nadpisz] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne]
                                           [--tylko-sprzatanie] [--min-ciag 60] [--bez-poprawek] [--bez-czkawki] [--czkawka-raport]
                                           [--bez-tur-pl] [--bez-narracji-pl] [--tury-sep auto|pusta|nowa] [--tylko-tury-pl [--sucho] [--kopia plik.zip]]
+                                          [--bez-akapitow] [--akapity-wymus] [--tylko-akapity [--sucho] [--kopia plik.zip]]
 ```
 
 ## Cięcie linii (przed i po tłumaczeniu)
@@ -79,6 +81,18 @@ Podwojone słowo (`się się`) bywa błędem DeepL, ale bywa też poprawne, wię
 Druga kontrola dotyczy linii oryginału pisanych wielkimi literami (krzyki), w których DeepL potrafi wygenerować nonsens, pętlę albo bardzo długą serię jednego znaku. Wynik to linia `CZKAWKA:` w konsoli z kontekstem PL i EN oraz pełna lista w `KATALOG_raport_naprawy.txt`. Krok niczego nie blokuje (`--czkawka-raport` tylko raportuje, `--bez-czkawki` go wyłącza).
 
 Ten sam przegląd dla istniejących tłumaczeń: `python litert-rozdziel/scripts/czkawka_przeglad.py KATALOG [--korzen KORZEN [--wszystkie]] [--csv plik] [--md plik] [--napraw [--kopia plik.zip]]`. Dla katalogów po cięciu tur wyrównuje tłumaczenie do oryginału po długościach linii; katalogi bez `org` (`--wszystkie`) klasyfikuje tylko po słowie.
+
+## Twardo zawinięte linie → akapity
+
+Część tekstów źródłowych ma linie „twardo zawinięte" na ok. 60–90 znaków, a akapity oddzielone pustymi liniami. DeepL zachowuje ten układ 1:1, więc w tłumaczeniu zdania są porwane na krótkie linie, a czytnik (np. Speechify) robi pauzę na każdym końcu linii. `litert-rozdziel` składa je w akapity (`scripts/akapity.py`): po kontroli i sprzątaniu, **przed** cięciem tur.
+
+- **Wykrywanie (per plik):** blok (ciąg niepustych linii) jest zawinięty, gdy ma co najmniej 2 linie, żadna nie jest dłuższa niż 140 znaków, większość ma co najmniej 35 znaków, przynajmniej jedna nie kończy się znakiem końca zdania, a co najmniej 1/3 zaczyna się od małej litery (odróżnia to zawinięty tekst od wierszy). Plik jest zawinięty, gdy takie bloki zawierają co najmniej **30%** niepustych linii. W plikach częściowo zawiniętych łączone są tylko zawinięte bloki.
+- **Łączenie:** jedną spacją (bez spacji przed `, . ; : ! ? ) ” »` i po łączniku przed małą literą). Nie łączy po końcu zdania, gdy następna linia zaczyna się wypowiedzią (`„` lub pauzą dialogową), ani pełnych akapitów (linie powyżej 140 znaków). Akapit powyżej 4000 znaków jest dzielony na końcach zdań.
+- **Weryfikacja:** tekst bez białych znaków musi pozostać identyczny, drugi przebieg niczego nie zmienia, a raport trafia do `org\KATALOG_akapity.txt`.
+- **Flagi:** `--bez-akapitow` (wyłącza krok), `--akapity-wymus` (także pliki poniżej progu), `--tylko-akapity [--sucho] [--kopia plik.zip]` (istniejące tłumaczenia, także w katalogach bez `org`).
+- Po łączeniu cięcie tur nadal dzieli akapity na wypowiedzi, więc dialogi zachowują naturalną pauzę.
+
+W danych autora zawiniętych było 45 z 6 611 tłumaczeń (11 katalogów), np. `Another Lazy, Wasted Saturday Afternoon`: 926 → 220 niepustych linii, mediana długości linii 57 → 144 znaki.
 
 ## Pominięte akapity
 

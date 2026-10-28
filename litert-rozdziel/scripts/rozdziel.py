@@ -595,6 +595,104 @@ def postprodukcja_tury(d, wyniki, tryb="auto", narracja=True):
     _wypisz_tury(d, szczegoly, seps)
 
 
+_AK_MOD = [None]
+
+
+def _akapity_modul():
+    if _AK_MOD[0] is None:
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("akapity", os.path.join(os.path.dirname(os.path.abspath(__file__)), "akapity.py"))
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)
+            _AK_MOD[0] = m
+        except Exception:
+            _AK_MOD[0] = False
+    return _AK_MOD[0]
+
+
+def _wypisz_akapity(d, szczegoly, sucho=False):
+    """szczegoly: lista (plik, niepustych_przed, niepustych_po, udzial_zawinietych). Raport w konsoli i (poza trybem sucho) w org/KATALOG_akapity.txt."""
+    if not szczegoly:
+        return
+    przed, po = sum(s[1] for s in szczegoly), sum(s[2] for s in szczegoly)
+    print("AKAPITY%s: %d plikow z twardo zawinietymi liniami, niepustych linii %d -> %d%s" % (
+        " (SUCHO: nic nie zapisano)" if sucho else "", len(szczegoly), przed, po,
+        " - najwiecej: " + ", ".join("%s %d->%d" % (f[:-7][:34], p, q) for f, p, q, _ in sorted(szczegoly, key=lambda x: x[1] - x[2], reverse=True)[:4])))
+    org = os.path.join(d, "org")
+    if not sucho and os.path.isdir(org):
+        import datetime
+        with open(os.path.join(org, os.path.basename(d) + "_akapity.txt"), "a", encoding="utf-8", newline="\n") as fh:
+            fh.write("%s  AKAPITY: %d plikow, niepustych linii %d -> %d\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), len(szczegoly), przed, po))
+            for f, p, q, u in sorted(szczegoly):
+                fh.write("   %6d -> %-6d  (zawiniete bloki: %3.0f%%)  %s\n" % (p, q, 100 * u, f))
+
+
+def postprodukcja_akapity(d, wyniki, wymus=False):
+    """Po udanym sprzataniu, PRZED cieciem tur: laczy twardo zawiniete linie w akapity (akapity.py). Pliki niezawiniete nie sa ruszane."""
+    ak = _akapity_modul()
+    if not ak:
+        return
+    szczegoly = []
+    for w in wyniki:
+        p = os.path.join(d, w)
+        if not os.path.isfile(p):
+            continue
+        try:
+            t = open(p, "rb").read().decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        nowy, info = ak.rozwin_tekst(t, wymus)
+        if info["blad"]:
+            print("UWAGA: AKAPITY: %s: %s" % (w, info["blad"]))
+            continue
+        if nowy != t:
+            with open(p, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(nowy)
+            szczegoly.append((w, info["przed"], info["po"], info["udzial"]))
+    _wypisz_akapity(d, szczegoly)
+
+
+def tylko_akapity(d, sucho=False, kopia=None, wymus=False):
+    """Laczy twardo zawiniete linie w akapity w ISTNIEJACYCH tlumaczeniach ' pl.txt' katalogu (bez spisu i org). kopia: zip z wersjami zmienianych plikow."""
+    import zipfile
+    ak = _akapity_modul()
+    if not ak:
+        print("BLAD: brak modulu akapity.py obok rozdziel.py")
+        return 1
+    zf = zipfile.ZipFile(kopia, "w", zipfile.ZIP_DEFLATED) if (kopia and not sucho) else None
+    sprawdzone, szczegoly = 0, []
+    for f in sorted(os.listdir(d)):
+        p = os.path.join(d, f)
+        if not (f.endswith(" pl.txt") and os.path.isfile(p)) or re.search(r"_all(_\d+)? pl\.txt$", f) or f.startswith("DO_PRZETLUMACZENIA"):
+            continue
+        sprawdzone += 1
+        raw = open(p, "rb").read()
+        try:
+            t = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            print("POMINIETO (nie jest UTF-8):", f)
+            continue
+        nowy, info = ak.rozwin_tekst(t, wymus)
+        if info["blad"]:
+            print("UWAGA: AKAPITY: %s: %s" % (f, info["blad"]))
+            continue
+        if nowy != t:
+            szczegoly.append((f, info["przed"], info["po"], info["udzial"]))
+            if not sucho:
+                if zf:
+                    zf.writestr(f, raw)
+                with open(p, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(nowy)
+    if zf:
+        zf.close()
+    print("Sprawdzono %d tlumaczen." % sprawdzone)
+    _wypisz_akapity(d, szczegoly, sucho)
+    for f, p, q, u in sorted(szczegoly):
+        print("   %6d -> %-6d (zawiniete bloki: %3.0f%%)  %s" % (p, q, 100 * u, f))
+    return 0
+
+
 def tylko_tury_pl(d, tryb="auto", sucho=False, kopia=None, narracja=True):
     """Ciecie linii na zmianach mowcy w ISTNIEJACYCH tlumaczeniach ' pl.txt' katalogu (bez spisu i org). kopia: zip z wersjami zmienianych plikow sprzed ciecia."""
     import zipfile
@@ -1086,7 +1184,10 @@ def main():
     ap.add_argument("--bez-narracji-pl", action="store_true", help="przy ciecia tur w tlumaczeniach NIE tnij miedzy narracja a wypowiedzia (po '.', '!', '?' przed „); ciecie ” „ zostaje")
     ap.add_argument("--tury-sep", choices=["auto", "pusta", "nowa"], default="auto", help="odstep miedzy odcinkami po ucieciu: auto (pusta linia, gdy plik uzywa pustych linii miedzy akapitami), pusta, nowa")
     ap.add_argument("--tylko-tury-pl", action="store_true", help="tylko tnij linie w zmianach mowcy w istniejacych tlumaczeniach ' pl.txt' katalogu (bez rozdzielania i sprzatania)")
-    ap.add_argument("--kopia", default="", help="z --tylko-tury-pl: zapisz w tym zipie wersje zmienianych plikow sprzed ciecia")
+    ap.add_argument("--kopia", default="", help="z --tylko-tury-pl / --tylko-akapity: zapisz w tym zipie wersje zmienianych plikow sprzed zmiany")
+    ap.add_argument("--bez-akapitow", action="store_true", help="NIE lacz twardo zawinietych linii w akapity (domyslnie po udanym sprzataniu, przed cieciem tur)")
+    ap.add_argument("--akapity-wymus", action="store_true", help="lacz zawiniete bloki takze w plikach, ktore nie przekraczaja progu 30%% (domyslnie takie pliki sa pomijane)")
+    ap.add_argument("--tylko-akapity", action="store_true", help="tylko lacz twardo zawiniete linie w akapity w istniejacych tlumaczeniach ' pl.txt' katalogu (z --sucho: tylko policz)")
     a = ap.parse_args()
     d = os.path.normpath(a.katalog)
     reguly = [] if a.bez_poprawek else wczytaj_poprawki()
@@ -1096,6 +1197,8 @@ def main():
         return tylko_poprawki(d, reguly, a.sucho)
     if a.tylko_tury_pl:
         return tylko_tury_pl(d, a.tury_sep, a.sucho, a.kopia or None, not a.bez_narracji_pl)
+    if a.tylko_akapity:
+        return tylko_akapity(d, a.sucho, a.kopia or None, a.akapity_wymus)
     spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
     spis_path = os.path.join(d, spis_nazwa)
     if a.tylko_sprzatanie and not os.path.exists(spis_path) and os.path.exists(os.path.join(d, "org", spis_nazwa)):
@@ -1119,6 +1222,8 @@ def main():
             return 2
         print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
         wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, os.path.basename(d) + "_raport_naprawy.txt", a.zachowaj_techniczne)
+        if not a.bez_akapitow and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
+            postprodukcja_akapity(d, wyniki, a.akapity_wymus)
         if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
             postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl)
         return 0
@@ -1288,6 +1393,8 @@ def main():
         else:
             print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
             wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, a.zachowaj_techniczne)
+            if not a.bez_akapitow and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
+                postprodukcja_akapity(d, wyniki, a.akapity_wymus)
             if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
                 postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl)
     return 0 if not problemy else 2
