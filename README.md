@@ -82,6 +82,10 @@ Druga kontrola dotyczy linii oryginału pisanych wielkimi literami (krzyki), w k
 
 Ten sam przegląd dla istniejących tłumaczeń: `python litert-rozdziel/scripts/czkawka_przeglad.py KATALOG [--korzen KORZEN [--wszystkie]] [--csv plik] [--md plik] [--napraw [--kopia plik.zip]]`. Dla katalogów po cięciu tur wyrównuje tłumaczenie do oryginału po długościach linii; katalogi bez `org` (`--wszystkie`) klasyfikuje tylko po słowie.
 
+## Raport tłumaczeń katalogu
+
+Na końcu pracy nad katalogiem `litert-rozdziel` zapisuje w nim plik `Raport tłumaczeń katalogu <NAZWA>.md` (`scripts/raport_katalogu.py`): podsumowanie wskaźników (liczba plików, zgodność układu linii z oryginałem, cięcia tur, akapity, podwojone słowa, resztki błędów słownika, linie możliwie nieprzetłumaczone), przebieg (słownik, czkawka, naprawy U+FFFD, kopia nadpisanych wyników, ostrzeżenia), sekcję poprawek ręcznych (z pliku `<Katalog>_poprawki_reczne.txt`), listę plików z flagami i tabelę wszystkich plików. Flagi: `--bez-raportu`, `--tylko-raport` (ponowne wygenerowanie dla istniejących tłumaczeń).
+
 ## Twardo zawinięte linie → akapity
 
 Część tekstów źródłowych ma linie „twardo zawinięte" na ok. 60–90 znaków, a akapity oddzielone pustymi liniami. DeepL zachowuje ten układ 1:1, więc w tłumaczeniu zdania są porwane na krótkie linie, a czytnik (np. Speechify) robi pauzę na każdym końcu linii. `litert-rozdziel` składa je w akapity (`scripts/akapity.py`): po kontroli i sprzątaniu, **przed** cięciem tur.

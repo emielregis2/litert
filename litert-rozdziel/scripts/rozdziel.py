@@ -612,6 +612,46 @@ def zabezpiecz_istniejace_wyniki(d, wyniki):
     return zp
 
 
+KOPIA_NADPISANIA = [None]
+_RK_MOD = [None]
+
+
+def _raport_modul():
+    if _RK_MOD[0] is None:
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("raport_katalogu", os.path.join(os.path.dirname(os.path.abspath(__file__)), "raport_katalogu.py"))
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)
+            _RK_MOD[0] = m
+        except Exception:
+            _RK_MOD[0] = False
+    return _RK_MOD[0]
+
+
+def zapisz_raport_katalogu(d, wyniki, ctx=None, reguly=None):
+    """Na koncu pracy nad katalogiem zapisuje w nim plik 'Raport tlumaczen katalogu <NAZWA>.md' (raport_katalogu.py). Nigdy nie przerywa pracy."""
+    rk = _raport_modul()
+    if not rk:
+        return None
+    try:
+        sciezka, nflag = rk.zapisz_raport(d, wyniki, ctx, zastosuj_poprawki, reguly)
+        print("RAPORT: zapisano %s (pliki z flagami: %d)" % (sciezka, nflag))
+        return sciezka
+    except Exception as e:
+        print("UWAGA: RAPORT: nie udalo sie zapisac raportu (%s)" % e)
+        return None
+
+
+def tylko_raport(d, reguly):
+    """Zapisuje (ponownie) raport dla ISTNIEJACYCH tlumaczen ' pl.txt' katalogu (oryginaly w org albo w katalogu)."""
+    wyniki = sorted(f for f in os.listdir(d) if f.endswith(" pl.txt") and os.path.isfile(os.path.join(d, f)) and not re.search(r"_all(_\d+)? pl\.txt$", f) and not f.startswith("DO_PRZETLUMACZENIA"))
+    if not wyniki:
+        print("BLAD: brak tlumaczen ' pl.txt' w katalogu")
+        return 1
+    return 0 if zapisz_raport_katalogu(d, wyniki, None, reguly) else 1
+
+
 _AK_MOD = [None]
 
 
@@ -1206,6 +1246,8 @@ def main():
     ap.add_argument("--bez-akapitow", action="store_true", help="NIE lacz twardo zawinietych linii w akapity (domyslnie po udanym sprzataniu, przed cieciem tur)")
     ap.add_argument("--akapity-wymus", action="store_true", help="lacz zawiniete bloki takze w plikach, ktore nie przekraczaja progu 30%% (domyslnie takie pliki sa pomijane)")
     ap.add_argument("--tylko-akapity", action="store_true", help="tylko lacz twardo zawiniete linie w akapity w istniejacych tlumaczeniach ' pl.txt' katalogu (z --sucho: tylko policz)")
+    ap.add_argument("--bez-raportu", action="store_true", help="nie zapisuj pliku 'Raport tlumaczen katalogu <NAZWA>.md' po zakonczeniu pracy")
+    ap.add_argument("--tylko-raport", action="store_true", help="tylko zapisz (ponownie) 'Raport tlumaczen katalogu <NAZWA>.md' dla istniejacych tlumaczen katalogu (oryginaly w org)")
     a = ap.parse_args()
     a.nadpisz = not a.nie_nadpisuj        # od 2026-10-28 nadpisywanie jest domyslne
     d = os.path.normpath(a.katalog)
@@ -1218,6 +1260,8 @@ def main():
         return tylko_tury_pl(d, a.tury_sep, a.sucho, a.kopia or None, not a.bez_narracji_pl)
     if a.tylko_akapity:
         return tylko_akapity(d, a.sucho, a.kopia or None, a.akapity_wymus)
+    if a.tylko_raport:
+        return tylko_raport(d, reguly)
     spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
     spis_path = os.path.join(d, spis_nazwa)
     if a.tylko_sprzatanie and not os.path.exists(spis_path) and os.path.exists(os.path.join(d, "org", spis_nazwa)):
@@ -1245,12 +1289,14 @@ def main():
             postprodukcja_akapity(d, wyniki, a.akapity_wymus)
         if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
             postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl)
+        if not a.bez_raportu:
+            zapisz_raport_katalogu(d, wyniki, None, reguly)
         return 0
     if not a.bez_zip:   # brakujace przetlumaczone pliki wypakuj z archiwum .zip z DeepL (jesli lezy w katalogu)
         oczek_pl = [pl[:-4] + " pl.txt" for pl in pliki] + [c[:-4] + " pl.txt" for _, cz in podzielone for c in cz]
         uzupelnij_z_zip(d, oczek_pl)
     if a.nadpisz:               # nadpisywanie jest domyslne: stare wyniki (jesli sa) trafiaja najpierw do zipa w Downloads
-        zabezpiecz_istniejace_wyniki(d, oczekiwane_pliki(nazwy, pliki, podzielone)[1])
+        KOPIA_NADPISANIA[0] = zabezpiecz_istniejace_wyniki(d, oczekiwane_pliki(nazwy, pliki, podzielone)[1])
     problemy, zapisane = [], 0
     TEKSTY_CZESCI = {}                         # nr czesci duzego pliku -> przetlumaczony tekst (skladane po przejrzeniu calej serii)
     naprawy = []                                                   # usuniete znaki U+FFFD (do raportu)
@@ -1397,6 +1443,20 @@ def main():
         with open(os.path.join(d, raport_nazwa), "a", encoding="utf-8", newline="\n") as fh:
             fh.write("%s\n%s\n\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "\n".join(raport)))
 
+    czk_linie = [("poprawiono: %s l.%d '%s' -> '%s'" % (e, w["linia"], w["slowo"], w["tok"])) if w.get("poprawiono") else
+                 ("do przegladu: %s l.%d [%s] '%s' | PL: ...%s... | EN: ...%s..." % (e, w["linia"], w["klasa"], w["slowo"], w["pl"].replace("\n", " "), w["en"].replace("\n", " ")))
+                 for e, w in CZK_WPISY]
+    import datetime as _dt
+    ctx_przebiegu = {"czas": _dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "komputer": os.environ.get("COMPUTERNAME", ""), "zam": dict(zam_licznik), "zam_plikow": zam_plikow[0],
+                     "czk_linie": czk_linie, "czk_uzasadnione": CZK_INNE[0], "ffd_znakow": sum(x["ile"] for x in naprawy), "ffd_miejsc": len(naprawy),
+                     "uwagi": list(problemy), "kopia_zip": KOPIA_NADPISANIA[0]}
+    if not a.bez_raportu:          # dane przebiegu czekaja na raport (zapisywany po udanym sprzataniu; raport kasuje ten plik)
+        _rk = _raport_modul()
+        if _rk:
+            try:
+                _rk.zapisz_przebieg(d, ctx_przebiegu)
+            except Exception:
+                pass
     # Kontrola kompletnosci; gdy wszystko OK: oryginaly do org, pliki techniczne kasowane (--zachowaj-techniczne: do org)
     if a.bez_org:
         print("ORG: pominieto (--bez-org)")
@@ -1418,6 +1478,8 @@ def main():
                 postprodukcja_akapity(d, wyniki, a.akapity_wymus)
             if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
                 postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl)
+            if not a.bez_raportu:
+                zapisz_raport_katalogu(d, wyniki, ctx_przebiegu, reguly)
     return 0 if not problemy else 2
 
 

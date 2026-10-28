@@ -85,6 +85,17 @@ Wynik: linia `CZKAWKA: ...` w konsoli (z kontekstem PL i EN) i pełna lista w `<
 
 `python scripts/czkawka_przeglad.py KATALOG [--korzen KORZEN [--wszystkie]] [--csv plik] [--md plik] [--napraw [--kopia plik.zip]]` robi ten sam przegląd dla ISTNIEJĄCYCH tłumaczeń: przy układzie 1:1 porównuje linia w linię, a dla katalogów po cięciu tur (inna liczba linii) wyrównuje tłumaczenie do oryginału po długościach linii (wtedy sprawdza oryginał w liniach i-1..i+1 i jest ostrożniejszy). Katalogi bez `org` (`--wszystkie`) są klasyfikowane tylko po słowie, bez autopoprawki. `--napraw` stosuje tylko autopoprawki klasy `SAFE`.
 
+## Raport tłumaczeń katalogu (zapisywany automatycznie na końcu pracy)
+
+Po zakończeniu pracy nad katalogiem (kontrola przeszła, oryginały w `org`, pliki techniczne posprzątane, akapity i cięcie tur wykonane) `rozdziel` zapisuje **w samym katalogu** plik **`Raport tłumaczeń katalogu <NAZWA>.md`** (np. `Raport tłumaczeń katalogu Catmoore_4.md`; kod w `scripts/raport_katalogu.py`). Zawartość:
+- **Podsumowanie wskaźników:** liczba plików, znaki i mediana stosunku długości, zgodność układu linii z oryginałem, cięcia tur, łączenie akapitów, linie dłuższe niż 800 znaków, podwojone słowa na 10 tys. słów, resztki znanych błędów słownika, formy `mamusiow*`, linie możliwie nieprzetłumaczone, liczba plików z flagami.
+- **Przebieg:** słownik (zamiany na regułę), czkawka (autopoprawki i miejsca do przeglądu z kontekstem), naprawy U+FFFD, kopia zapasowa nadpisanych wyników, ostrzeżenia z przebiegu.
+- **Poprawki ręczne**, lista plików z flagami, lista podwojonych słów do wglądu i tabela wszystkich plików (znaki, stosunek, niepuste linie, cięcia, flagi).
+- Raport powstaje **tylko po sukcesie**. Gdy kontrola wstrzymała sprzątanie, dane przebiegu czekają w pliku `<Katalog>_przebieg_rozdziel.json`, a raport powstanie przy `--tylko-sprzatanie`.
+- **Ręczne poprawki** (pętle, podwojenia, odtworzone zdania): zanim uruchomisz `--tylko-sprzatanie`, zapisz ich krótki opis (plik, linia, co i dlaczego, gdzie kopia zapasowa) w pliku `<Katalog>_poprawki_reczne.txt` w katalogu. Trafi do raportu i zostanie przeniesiony do `org`.
+- Flagi: `--bez-raportu` (nie zapisuj), `--tylko-raport` (zapisz ponownie dla istniejących tłumaczeń z oryginałami w `org`; bez danych przebiegu sekcje słownika i czkawki mają „brak danych”).
+- Raport jest źródłem liczb do podsumowania dla Darka po każdym katalogu: po `rozdziel` otwórz go i podaj z niego wskaźniki, zamiast liczyć ponownie.
+
 ## Akapity: łączenie twardo zawiniętych linii (krok w `rozdziel`)
 
 Część tekstów źródłowych ma linie „twardo zawinięte" na ok. 60–90 znaków (autor zawijał tekst ręcznie), a akapity są oddzielone pustymi liniami. DeepL zachowuje ten układ 1:1, więc w tłumaczeniu zdania są porwane na krótkie linie, a czytnik (np. Speechify) robi pauzę na każdym końcu linii. Po sprzątaniu i **przed** cięciem tur `rozdziel` składa je w akapity (`scripts/akapity.py`):
