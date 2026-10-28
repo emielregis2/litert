@@ -102,10 +102,10 @@ def parsuj_spis(path):
             sekcja_dz, sekcja_podz = True, False
             continue
         if sekcja_dz:
-            m = re.match(r"^\s+(.+?\.txt): dzielone linie (.+?)\s*$", line)
+            m = re.match(r"^\s+(.+?\.txt): dzielone linie (.+?)\s*$", line, re.I)
             if m:
                 PLAN_DZIEL[m.group(1)] = [tuple(int(x) for x in p.split("x")) for p in m.group(2).split(", ")]
-            m = re.match(r"^\s+(.+?\.txt): odstepy linii (.+?)\s*$", line)
+            m = re.match(r"^\s+(.+?\.txt): odstepy linii (.+?)\s*$", line, re.I)
             if m:
                 PLAN_ODSTEPY[m.group(1)] = {int(p.split("=")[0]): p.split("=")[1] for p in m.group(2).split(", ")}
             continue
@@ -113,7 +113,7 @@ def parsuj_spis(path):
             sekcja_podz = True
             continue
         if sekcja_podz:
-            m = re.match(r"^(\s*)(.+?\.txt)\s*(?:\(\d+ bajtow(?:, przerwa (\d+))?\))?\s*$", line)
+            m = re.match(r"^(\s*)(.+?\.txt)\s*(?:\(\d+ bajtow(?:, przerwa (\d+))?\))?\s*$", line, re.I)
             if m and m.group(1) == "" and line.strip():
                 podzielone.append((m.group(2), []))
             elif m and m.group(1) and podzielone:
@@ -125,7 +125,7 @@ def parsuj_spis(path):
         if m and cur:
             nr = int(m.group(1))
             nm = m.group(2)
-            mp = re.match(r"^(.+?\.txt) \(czesc (\d+) z (\d+)(?:, przerwa (\d+))?\)$", nm)
+            mp = re.match(r"^(.+?\.txt) \(czesc (\d+) z (\d+)(?:, przerwa (\d+))?\)$", nm, re.I)
             if mp:                                      # czesc duzego pliku w serii: osobny numer znacznika, skladana w main()
                 nm = mp.group(1)
                 WIRT[nr] = (nm, int(mp.group(2)), int(mp.group(3)), int(mp.group(4)) if mp.group(4) is not None else 0)
@@ -503,7 +503,7 @@ def tylko_poprawki(d, reguly, sucho=False):
     lacznie, sprawdzone, zmienione = collections.Counter(), 0, 0
     for f in sorted(os.listdir(d)):
         p = os.path.join(d, f)
-        if not (f.endswith(" pl.txt") and os.path.isfile(p)) or re.search(r"_all(_\d+)? pl\.txt$", f) or f.startswith("DO_PRZETLUMACZENIA"):
+        if not (f.lower().endswith(" pl.txt") and os.path.isfile(p)) or re.search(r"_all(_\d+)? pl\.txt$", f, re.I) or f.startswith("DO_PRZETLUMACZENIA"):
             continue
         sprawdzone += 1
         try:
@@ -645,7 +645,7 @@ def zapisz_raport_katalogu(d, wyniki, ctx=None, reguly=None):
 
 def tylko_raport(d, reguly):
     """Zapisuje (ponownie) raport dla ISTNIEJACYCH tlumaczen ' pl.txt' katalogu (oryginaly w org albo w katalogu)."""
-    wyniki = sorted(f for f in os.listdir(d) if f.endswith(" pl.txt") and os.path.isfile(os.path.join(d, f)) and not re.search(r"_all(_\d+)? pl\.txt$", f) and not f.startswith("DO_PRZETLUMACZENIA"))
+    wyniki = sorted(f for f in os.listdir(d) if f.lower().endswith(" pl.txt") and os.path.isfile(os.path.join(d, f)) and not re.search(r"_all(_\d+)? pl\.txt$", f, re.I) and not f.startswith("DO_PRZETLUMACZENIA"))
     if not wyniki:
         print("BLAD: brak tlumaczen ' pl.txt' w katalogu")
         return 1
@@ -721,7 +721,7 @@ def tylko_akapity(d, sucho=False, kopia=None, wymus=False):
     sprawdzone, szczegoly = 0, []
     for f in sorted(os.listdir(d)):
         p = os.path.join(d, f)
-        if not (f.endswith(" pl.txt") and os.path.isfile(p)) or re.search(r"_all(_\d+)? pl\.txt$", f) or f.startswith("DO_PRZETLUMACZENIA"):
+        if not (f.lower().endswith(" pl.txt") and os.path.isfile(p)) or re.search(r"_all(_\d+)? pl\.txt$", f, re.I) or f.startswith("DO_PRZETLUMACZENIA"):
             continue
         sprawdzone += 1
         raw = open(p, "rb").read()
@@ -757,7 +757,7 @@ def tylko_tury_pl(d, tryb="auto", sucho=False, kopia=None, narracja=True):
     sprawdzone, szczegoly, seps = 0, [], set()
     for f in sorted(os.listdir(d)):
         p = os.path.join(d, f)
-        if not (f.endswith(" pl.txt") and os.path.isfile(p)) or re.search(r"_all(_\d+)? pl\.txt$", f) or f.startswith("DO_PRZETLUMACZENIA"):
+        if not (f.lower().endswith(" pl.txt") and os.path.isfile(p)) or re.search(r"_all(_\d+)? pl\.txt$", f, re.I) or f.startswith("DO_PRZETLUMACZENIA"):
             continue
         sprawdzone += 1
         raw = open(p, "rb").read()
