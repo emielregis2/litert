@@ -1278,8 +1278,23 @@ def main():
         return tylko_raport(d, reguly)
     spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
     spis_path = os.path.join(d, spis_nazwa)
-    if a.tylko_sprzatanie and not os.path.exists(spis_path) and os.path.exists(os.path.join(d, "org", spis_nazwa)):
-        spis_path = os.path.join(d, "org", spis_nazwa)       # spis zostal w org po wczesniejszym rozdzieleniu
+    if not os.path.exists(spis_path):            # katalog zmienil nazwe po scaleniu (np. Katalog_3 -> Katalog_4): pliki techniczne maja stary przedrostek
+        inne = sorted(f for f in os.listdir(d) if f.lower().endswith("_spis_scalenia.txt") and os.path.isfile(os.path.join(d, f)))
+        if len(inne) == 1:
+            print("INFO: katalog zmienil nazwe po scaleniu - uzywam spisu %s (serie _all_N i ich tlumaczenia maja ten sam stary przedrostek)" % inne[0])
+            spis_nazwa = inne[0]
+            spis_path = os.path.join(d, spis_nazwa)
+        elif len(inne) > 1:
+            print("BLAD: brak spisu %s, a w katalogu jest kilka innych spisow (%s) - nie wiem, ktory wybrac" % (spis_nazwa, ", ".join(inne)))
+            return 1
+    if a.tylko_sprzatanie and not os.path.exists(spis_path):
+        org_d = os.path.join(d, "org")
+        inne_org = sorted(f for f in os.listdir(org_d) if f.lower().endswith("_spis_scalenia.txt")) if os.path.isdir(org_d) else []
+        if os.path.exists(os.path.join(org_d, spis_nazwa)):
+            spis_path = os.path.join(org_d, spis_nazwa)       # spis zostal w org po wczesniejszym rozdzieleniu
+        elif len(inne_org) == 1:
+            spis_nazwa = inne_org[0]
+            spis_path = os.path.join(org_d, spis_nazwa)       # ... pod starym przedrostkiem (katalog zmienil nazwe)
     if not os.path.exists(spis_path):
         print("BLAD: brak pliku spisu:", spis_path)
         if os.path.exists(os.path.join(d, "org", os.path.basename(spis_path))):

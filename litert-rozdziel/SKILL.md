@@ -85,6 +85,10 @@ Wynik: linia `CZKAWKA: ...` w konsoli (z kontekstem PL i EN) i pełna lista w `<
 
 `python scripts/czkawka_przeglad.py KATALOG [--korzen KORZEN [--wszystkie]] [--csv plik] [--md plik] [--napraw [--kopia plik.zip]]` robi ten sam przegląd dla ISTNIEJĄCYCH tłumaczeń: przy układzie 1:1 porównuje linia w linię, a dla katalogów po cięciu tur (inna liczba linii) wyrównuje tłumaczenie do oryginału po długościach linii (wtedy sprawdza oryginał w liniach i-1..i+1 i jest ostrożniejszy). Katalogi bez `org` (`--wszystkie`) są klasyfikowane tylko po słowie, bez autopoprawki. `--napraw` stosuje tylko autopoprawki klasy `SAFE`.
 
+## Zmiana nazwy katalogu po scaleniu
+
+Po `scal` katalog bywa przemianowywany (np. `Katalog_3` → `Katalog_4`), a pliki techniczne zachowują stary przedrostek (`Katalog_3_all_N.txt`, `Katalog_3_spis_scalenia.txt`, a zip z DeepL zawiera `Katalog_3_all_N pl.txt`). `rozdziel` sam to obsługuje: gdy nie ma spisu o nazwie katalogu, a w katalogu (przy `--tylko-sprzatanie` także w `org`) leży dokładnie jeden `*_spis_scalenia.txt`, używa go i wypisuje `INFO: katalog zmienil nazwe po scaleniu`; nazwy serii i tłumaczeń bierze ze spisu. Gdy spisów jest kilka, kończy się błędem z listą. Raport, listy cięć i akapitów dostają już NOWĄ nazwę katalogu.
+
 ## Raport tłumaczeń katalogu (zapisywany automatycznie na końcu pracy)
 
 Po zakończeniu pracy nad katalogiem (kontrola przeszła, oryginały w `org`, pliki techniczne posprzątane, akapity i cięcie tur wykonane) `rozdziel` zapisuje **w samym katalogu** plik **`Raport tłumaczeń katalogu <NAZWA>.md`** (np. `Raport tłumaczeń katalogu Catmoore_4.md`; kod w `scripts/raport_katalogu.py`). Zawartość:

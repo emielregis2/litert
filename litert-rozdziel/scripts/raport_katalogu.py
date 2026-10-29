@@ -141,10 +141,29 @@ def zbuduj(d, wyniki, ctx, zastosuj_poprawki=None, reguly=None):
         L.append("- **Słownik poprawek DeepL:** brak danych (raport z osobnego przebiegu).")
     cl = ctx.get("czk_linie")
     if cl is not None:
-        auto = sum(1 for x in cl if x.startswith("poprawiono")); prz = len(cl) - auto
-        L.append("- **Czkawka DeepL** (podwojone słowa, błędy na wielkich literach, porównane z oryginałem): autopoprawek %d, do przeglądu %d, uzasadnionych podwojeń pominiętych %d." % (auto, prz, ctx.get("czk_uzasadnione", 0)))
+        _cache = {}
+
+        def _naprawione(x):
+            """Wpis 'do przegladu' z pierwszego przebiegu jest juz nieaktualny, gdy jego tekst zniknal z pliku (reczna poprawka po przegladzie)."""
+            m = re.match(r"^do przegladu: (.+? pl\.txt) l\.\d+ \[[^\]]*\] '(.*?)' \| PL: \.\.\.(.*?)(?:\.\.\.)?(?: \| EN:.*)?$", x)
+            if not m:
+                return False
+            p = os.path.join(d, m.group(1))
+            if not os.path.isfile(p):
+                return False
+            if p not in _cache:
+                _cache[p] = _czytaj(p)
+            slowo, frag = m.group(2), m.group(3)[:50]
+            if slowo and not slowo.startswith("stosunek") and slowo not in _cache[p]:
+                return True
+            return bool(frag) and frag not in _cache[p]
+        auto = sum(1 for x in cl if x.startswith("poprawiono"))
+        nap = [x for x in cl if x.startswith("do przegladu") and _naprawione(x)]
+        prz = len(cl) - auto
+        L.append("- **Czkawka DeepL** (podwojone słowa, błędy na wielkich literach, porównane z oryginałem): autopoprawek %d, do przeglądu %d%s, uzasadnionych podwojeń pominiętych %d." % (
+            auto, prz, (" (z tego %d naprawiono ręcznie po przeglądzie, patrz Poprawki ręczne; otwartych: %d)" % (len(nap), prz - len(nap))) if nap else "", ctx.get("czk_uzasadnione", 0)))
         for x in cl[:40]:
-            L.append("  - " + _c(x)[:300])
+            L.append("  - " + ("**[naprawione ręcznie]** " if x in nap else "") + _c(x)[:300])
     if ctx.get("ffd_znakow"):
         L.append("- **Znaki uszkodzone (U+FFFD):** usunięto %d znak(ów) w %d miejscach." % (ctx["ffd_znakow"], ctx.get("ffd_miejsc", 0)))
     if ctx.get("kopia_zip"):
