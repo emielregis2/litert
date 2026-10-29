@@ -926,7 +926,7 @@ def znajdz_petle_slow(linia, zrodlo=None, baza=None, min_run=10):
     return (dl, slowo) if dl >= 2 * baza + 1 else None
 
 
-def _sprawdz_petle_slow(nazwa, tekst, op, problemy):
+def _sprawdz_petle_slow(nazwa, tekst, op, problemy, min_run=10):
     """Blokujaca kontrola 'petli slow' DeepL (np. 'krzakowata' x 88): linia wyniku z ciagiem >= 10 tych samych slow lub fraz, ktorego nie ma w oryginale.
     Taka linia jest zepsuta i trzeba ja przetlumaczyc ponownie: python dlugie_linie.py KATALOG --petle --przygotuj."""
     lo = None
@@ -942,7 +942,7 @@ def _sprawdz_petle_slow(nazwa, tekst, op, problemy):
     for i, l in enumerate(L):
         if len(l) < 40:
             continue
-        w = znajdz_petle_slow(l, lo[i] if lo is not None and len(lo) == len(L) else "")
+        w = znajdz_petle_slow(l, lo[i] if lo is not None and len(lo) == len(L) else "", min_run=min_run)
         if w:
             zgl += 1
             if zgl <= 5:
@@ -1058,7 +1058,7 @@ def _sprawdz_akapity(nazwa, tekst, op, problemy, krotko=20):
         problemy.append("KONTROLA: w wyniku %s brakuje %d akapitow oryginalu (DeepL je pominal lub scalil z sasiednia linia - zweryfikuj tlumaczeniem pliku pomocniczego): linie oryginalu %s" % (nazwa, len(duze), ", ".join(duze[:10])))
 
 
-def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60, kontrola_akapitow=True):
+def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60, kontrola_akapitow=True, min_run_slow=10):
     """Kontrola, czy kazdy wynik jest zapisany i kompletny: istnieje, nie jest pusty, jest poprawnym UTF-8,
     nie ma znacznikow granic, nie ma 'petli' (dlugiego ciagu tego samego znaku, ktorego brak w oryginale) i nie jest
     podejrzanie maly wzgledem oryginalu (ucięte tlumaczenie)."""
@@ -1089,7 +1089,8 @@ def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60, kontrola_akapitow=
                                 % (w, len(raw) / so))
         if min_ciag > 0:
             _sprawdz_petle(w, t, op, min_ciag, problemy)
-            _sprawdz_petle_slow(w, t, op, problemy)
+            if min_run_slow > 0:
+                _sprawdz_petle_slow(w, t, op, problemy, min_run_slow)
         if kontrola_akapitow and op:
             _sprawdz_akapity(w, t, op, problemy)
         _raport_czkawki(w, t, op)
@@ -1244,6 +1245,8 @@ def main():
                     help="tylko kontrola kompletnosci i sprzatanie (bez rozdzielania) - dla katalogu rozdzielonego wczesniej")
     ap.add_argument("--min-ciag", type=int, default=60,
                     help="od ilu powtorzen jednego znaku ciag w wyniku jest sprawdzany jako mozliwa petla DeepL (0 = wylacz kontrole)")
+    ap.add_argument("--min-petla-slow", type=int, default=10,
+                    help="od ilu powtorzen tego samego slowa/frazy obok siebie linia wyniku jest uznawana za petle slow DeepL i blokuje sprzatanie (domyslnie 10; 0 = wylacz te jedna kontrole). Podnies, gdy kontrola zglasza falszywy alarm, np. onomatopeje 'klik, klik, klik...' (prawdziwe petle maja zwykle >= 19 powtorzen)")
     ap.add_argument("--bez-kontroli-akapitow", action="store_true",
                     help="wylacz kontrole liczby linii z trescia (wykrywanie akapitow pominietych przez DeepL)")
     ap.add_argument("--bez-poprawek", action="store_true", help="nie stosuj slownika poprawek DeepL (poprawki_deepl.txt) przy zapisie wynikow")
@@ -1304,7 +1307,7 @@ def main():
     if a.tylko_sprzatanie:      # sama kontrola kompletnosci i sprzatanie, bez rozdzielania
         oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
         brak = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
-        weryf = [] if brak else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow)
+        weryf = [] if brak else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow, a.min_petla_slow)
         for w in brak:
             print("UWAGA: BRAK wyniku:", w)
         for w in weryf:
@@ -1493,7 +1496,7 @@ def main():
         krytyczne = [p for p in problemy if not p.startswith("POMINIETO")]
         oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
         brak_wynikow = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
-        weryf = [] if brak_wynikow else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow)
+        weryf = [] if brak_wynikow else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow, a.min_petla_slow)
         for w in weryf:
             print("UWAGA:", w)
         problemy.extend(weryf)
