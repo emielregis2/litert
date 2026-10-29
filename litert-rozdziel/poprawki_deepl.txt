@@ -120,3 +120,46 @@ moją łonę => moje łono
 łonówka => łono
 łonę => łono
 # BEZ regul (do decyzji Darka): "lonow" (1 trafienie: "owocem jego lonow") i "lonowek" (2 trafienia: "faktura moich lonowek") - nieznane znaczenie.
+
+# Dopisane 2026-10-29
+# kielochy: DeepL daje 'kielochy' zamiast 'majtki' (korpus: 1 trafienie: 'kielochy kapielowe'); 'kieloch' nie jest polskim slowem, wiec cala odmiana liczby mnogiej
+kielochy => majtki
+kielochów => majtek
+kielochom => majtkom
+kielochami => majtkami
+kielochach => majtkach
+# rozkroszyc: DeepL daje 'rozkroszyla' zamiast 'rozkraczyla' ('rozkroszyc' nie istnieje po polsku; zgloszone z nowego tlumaczenia, 0 trafien w starym korpusie) - cala odmiana
+rozkroszyć => rozkraczyć
+rozkroszył => rozkraczył
+rozkroszyła => rozkraczyła
+rozkroszyło => rozkraczyło
+rozkroszyli => rozkraczyli
+rozkroszyły => rozkraczyły
+rozkroszyłem => rozkraczyłem
+rozkroszyłam => rozkraczyłam
+rozkroszyłeś => rozkraczyłeś
+rozkroszyłaś => rozkraczyłaś
+rozkroszyliśmy => rozkraczyliśmy
+rozkroszyłyśmy => rozkraczyłyśmy
+rozkroszyliście => rozkraczyliście
+rozkroszyłyście => rozkraczyłyście
+rozkroszę => rozkraczę
+rozkroszysz => rozkraczysz
+rozkroszy => rozkraczy
+rozkroszymy => rozkraczymy
+rozkroszycie => rozkraczycie
+rozkroszą => rozkraczą
+rozkrosz => rozkracz
+rozkroszcie => rozkraczcie
+rozkroszając => rozkraczając
+rozkroszywszy => rozkraczywszy
+rozkroszony => rozkraczony
+rozkroszona => rozkraczona
+rozkroszone => rozkraczone
+rozkroszeni => rozkraczeni
+rozkroszonego => rozkraczonego
+rozkroszonej => rozkraczonej
+rozkroszonym => rozkraczonym
+rozkroszoną => rozkraczoną
+rozkroszonych => rozkraczonych
+rozkroszonymi => rozkraczonymi
