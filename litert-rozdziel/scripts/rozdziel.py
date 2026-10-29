@@ -1109,7 +1109,21 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
         zrodlo, cel = os.path.join(d, o), os.path.join(org, o)
         if os.path.exists(zrodlo):
             if os.path.exists(cel):
-                ostrz.append("oryginal %s jest juz w org - nie przeniesiono (zostaje tez w katalogu glownym)" % o)
+                import filecmp
+                if filecmp.cmp(zrodlo, cel, shallow=False):          # identyczna kopia: katalog glowny jej juz nie potrzebuje
+                    os.remove(zrodlo)
+                    przen.append(o)
+                else:                                                  # nowsza wersja oryginalu: stara z org trafia do _zastapione, nowa do org
+                    import datetime as _dtm
+                    zast = os.path.join(d, "_zastapione")
+                    os.makedirs(zast, exist_ok=True)
+                    stara = os.path.join(zast, o)
+                    if os.path.exists(stara):
+                        stara = os.path.join(zast, "%s__%s%s" % (os.path.splitext(o)[0], _dtm.datetime.now().strftime("%Y%m%d_%H%M%S"), os.path.splitext(o)[1]))
+                    _przenies(cel, stara)
+                    _przenies(zrodlo, cel)
+                    przen.append(o)
+                    ostrz.append("INFO: nowsza wersja oryginalu %s zastapila wersje w org (stara zachowana w _zastapione)" % o)
             else:
                 rozm = os.path.getsize(zrodlo)
                 _przenies(zrodlo, cel)

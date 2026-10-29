@@ -22,6 +22,15 @@ def jest_tlumaczeniem_pl(nazwa):
     return bool(_PL_RX.search(baza.rstrip()))
 
 
+# Pliki techniczne NIGDY nie sa oryginalami: pliki scalenia 'X_all.txt' / 'X_all_N.txt' (i ich tlumaczenia 'pl'), spisy, raporty i listy z rozdziel, plik DO_PRZETLUMACZENIA.
+# W org nosza nazwe katalogu z chwili pracy (np. po zmianie Katalog_3 -> Katalog_4), wiec rozpoznajemy je po koncowce, a nie po nazwie katalogu.
+_TECH_RX = re.compile(r"(_all(_\d+)?|_spis_scalenia|_raport_naprawy|_tury_pl|_akapity|_poprawki_reczne|_przebieg_rozdziel)(\s+pl)?\.txt$|^DO_PRZETLUMACZENIA", re.I)
+
+
+def jest_techniczny(nazwa):
+    return bool(_TECH_RX.search(nazwa))
+
+
 def czytaj_plik(path):
     """Zwraca (tekst, kodowanie). Kolejnosc: UTF-16 (z BOM) -> UTF-8 (z BOM lub bez) ->
     cp1252 (zwykle "ANSI" angielskich plikow z Windows) -> awaryjnie cp1250."""
@@ -438,6 +447,8 @@ def main():
             return False
         if jest_tlumaczeniem_pl(f):             # TWARDA ZASADA: wersje przetlumaczone na polski (' pl') nigdy nie sa scalane
             return False
+        if jest_techniczny(f):                  # pliki techniczne (scalenia, spisy, raporty, listy) nie sa oryginalami
+            return False
         if "_copy(" in low:                      # kopie tworzone przez Dropbox/edytor
             return False
         return True
@@ -445,6 +456,22 @@ def main():
     import re
     all_txt = {f.lower(): f for f in os.listdir(d) if f.lower().endswith(".txt")}
     cands = sorted((f for f in os.listdir(d) if is_orig(f)), key=str.lower)
+    # Podkatalog org (po poprzedniej obrobce): scalaniu podlegaja WSZYSTKIE oryginaly z org (poza technicznymi) ORAZ nowe pliki z katalogu glownego
+    # (poza technicznymi i plikami 'pl'). Plik o tej samej nazwie w obu miejscach: wygrywa wersja z katalogu glownego (nowsza). Dzieki temu mozna
+    # ponownie przetlumaczyc caly katalog nowszym modelem DeepL; nowe tlumaczenia nadpisza stare (rozdziel).
+    zrodla = {f: os.path.join(d, f) for f in cands}
+    org_dir = os.path.join(d, "org")
+    org_nazwy, zastepuja_org = [], []
+    if os.path.isdir(org_dir):
+        glowne_lower = {f.lower(): f for f in cands}
+        for f in sorted(os.listdir(org_dir), key=str.lower):
+            if os.path.isfile(os.path.join(org_dir, f)) and is_orig(f):
+                if f.lower() in glowne_lower:
+                    zastepuja_org.append(glowne_lower[f.lower()])
+                else:
+                    zrodla[f] = os.path.join(org_dir, f)
+                    org_nazwy.append(f)
+        cands = sorted(zrodla, key=str.lower)
 
     # Czesci z poprzedniego dzielenia (NazwaOryginalu_N.txt, gdy NazwaOryginalu.txt istnieje) nie sa oryginalami
     def czesc_z(f):
@@ -456,7 +483,7 @@ def main():
     items, duze, ostrz_kod, kodowania, skrocone = [], [], [], {}, {}
     dzielone_linie, odstepy_linii = {}, {}
     for n in names:
-        txt, enc = czytaj_plik(os.path.join(d, n))
+        txt, enc = czytaj_plik(zrodla[n])
         kodowania[enc] = kodowania.get(enc, 0) + 1
         if enc in ("utf-16", "cp1250"):      # cp1252 to zwykle ANSI - normalne, bez ostrzezenia
             ostrz_kod.append("%s: odczytano jako %s (nietypowe kodowanie) - sprawdz znaki specjalne" % (n, enc))
@@ -464,7 +491,7 @@ def main():
             ostrz_kod.append("%s: zawiera znak zastepczy U+FFFD (znaki uszkodzone juz w zrodle)" % n)
         if enc in ("cp1252", "cp1250", "utf-8"):      # mieszane kodowanie: bajty D3/D4 (cudzyslow, apostrof) + uszkodzony nastepny znak
             import re as _re
-            uszk = len(_re.findall(rb"[\xd3\xd4][\x80-\xbf]", open(os.path.join(d, n), "rb").read()))
+            uszk = len(_re.findall(rb"[\xd3\xd4][\x80-\xbf]", open(zrodla[n], "rb").read()))
             if uszk >= 5 and (enc != "utf-8" or (sum(1 for c in txt if "\u04c0" <= c <= "\u053f") >= 5 and sum(1 for c in txt if "\u0410" <= c <= "\u044f") <= uszk)):
                 ostrz_kod.append("%s: wykryto %d uszkodzonych sekwencji cudzyslowow/apostrofow (bajty D3/D4 + uszkodzony znak) - PRZED tlumaczeniem uruchom napraw_kodowanie.py" % (n, uszk))
         txt = txt.replace("\r\n", "\n").strip("\n") + "\n"
@@ -549,7 +576,7 @@ def main():
         print("UWAGA: pominalem w scalaniu prawdopodobne czesci (oryginal nie jest juz duzy):", ", ".join(stare_czesci))
 
     if not items and not duze:
-        print("Brak plikow do scalenia (moze oryginaly zostaly przeniesione do podkatalogu org?) - nic nie zapisano.")
+        print("Brak plikow do scalenia (w katalogu glownym ani w org nie ma oryginalow .txt poza technicznymi i plikami pl) - nic nie zapisano.")
         return 0
 
     # Pakowanie: jak najmniej plikow scalenia, maksymalne wypelnienie limitu (bin packing).
@@ -598,11 +625,14 @@ def main():
             if n in odstepy_linii:                  # sposob laczenia kawalkow: s = spacja, q = bez niczego (ciecie miedzy cudzyslowami)
                 spis.append("    %s: odstepy linii %s" % (n, ", ".join("%d=%s" % (j, sp) for j, sp in sorted(odstepy_linii[n].items()))))
         spis.append("")
-    # Spis scalenia: oryginalne nazwy plikow w kazdym pliku scalenia
+    # Spis scalenia: oryginalne nazwy plikow w kazdym pliku scalenia (BEZ dodatkowych linii: parsuj_spis w rozdziel bierze kazda nieodsunieta linie za nazwe pliku scalenia)
     with open(os.path.join(d, spis_name), "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(spis).rstrip("\n") + "\n")
     print(spis_name, "zapisany")
-    print("Pominiete (pl/_copy) nie sa wypisywane; scalono plikow:", len({x[0] for x in items}))
+    print("Pominiete (pl/_copy/techniczne) nie sa wypisywane; scalono plikow:", len({x[0] for x in items}))
+    if org_nazwy or zastepuja_org or os.path.isdir(org_dir):
+        print("Zrodla (wykryto podkatalog org): oryginaly z org: %d | nowe lub nowsze pliki w katalogu glownym: %d (w tym nowsze wersje zastepujace oryginal z org: %d)%s"
+              % (len(org_nazwy), len(names) - len(org_nazwy), len(zastepuja_org), (": " + ", ".join(zastepuja_org[:5])) if zastepuja_org else ""))
     print("Kodowanie wejscia: " + ", ".join("%s: %d" % (k, v) for k, v in sorted(kodowania.items())))
     print("Kodowanie wyniku: UTF-8 bez BOM, konce linii LF")
     czesci_duzych = [x for x in items if x[5] is not None]
