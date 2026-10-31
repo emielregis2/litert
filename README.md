@@ -19,7 +19,7 @@ Oryginalna Nazwa pl.txt
 
 1. **Scalanie:** `scal C:\...\KATALOG`. Powstają `KATALOG_all_N.txt`, `KATALOG_spis_scalenia.txt` oraz ewentualnie części dużych plików (`Nazwa_N.txt`). Przed wysłaniem do DeepL długie linie są cięte (na zmianach mówcy i do 800 znaków), a przeciągnięte litery skracane.
 2. **Tłumaczenie ręcznie w DeepL:** wgrywasz pliki `KATALOG_all_N.txt` i części dużych plików (nie spis i nie duże oryginały), a wyniki zapisujesz w tym samym katalogu z końcówką ` pl` (albo zostawiasz zip z DeepL).
-3. **Rozdzielanie:** `rozdziel C:\...\KATALOG`. Powstają pliki `Oryginalna Nazwa pl.txt`: skrypt składa pocięte linie, stosuje słownik poprawek, sprawdza czkawkę DeepL, kontroluje kompletność, przenosi oryginały do podkatalogu `org`, kasuje pliki techniczne (scalenia, spis, części, archiwum `.zip`) i na końcu tnie linie na zmianach mówcy. W katalogu głównym zostają same tłumaczenia.
+3. **Rozdzielanie:** `rozdziel C:\...\KATALOG`. Powstają pliki `Oryginalna Nazwa pl.txt`: skrypt składa pocięte linie, stosuje słownik poprawek, sprawdza czkawkę DeepL, kontroluje kompletność, przenosi oryginały do podkatalogu `org`, kasuje pliki techniczne (scalenia, spis, części, archiwum `.zip`) i na końcu tnie linie na zmianach mówcy. W katalogu głównym zostają same tłumaczenia (plus raport `Raport tłumaczeń katalogu <NAZWA>.md`). Przy **ponownym tłumaczeniu** katalogu (są już stare wyniki) nowe przechodzą wszystkie etapy w `_nowe_tlumaczenia` i zastępują stare dopiero po sukcesie (sekcja „Ponowne tłumaczenie katalogu”).
 
 ## litert
 
@@ -58,9 +58,11 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 
 ```
 python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nie-nadpisuj] [--bez-org] [--bez-zip] [--max-fffd 10] [--zachowaj-techniczne]
-                                          [--tylko-sprzatanie] [--min-ciag 60] [--bez-poprawek] [--bez-czkawki] [--czkawka-raport]
+                                          [--tylko-sprzatanie] [--min-ciag 60] [--min-petla-slow 10] [--bez-kontroli-akapitow]
+                                          [--bez-poprawek] [--tylko-poprawki [--sucho]] [--bez-czkawki] [--czkawka-raport]
                                           [--bez-tur-pl] [--bez-narracji-pl] [--tury-sep auto|pusta|nowa] [--tylko-tury-pl [--sucho] [--kopia plik.zip]]
                                           [--bez-akapitow] [--akapity-wymus] [--tylko-akapity [--sucho] [--kopia plik.zip]]
+                                          [--bez-raportu] [--tylko-raport] [--tylko-podmien]
 ```
 
 ## Cięcie linii (przed i po tłumaczeniu)
@@ -86,6 +88,19 @@ Ten sam przegląd dla istniejących tłumaczeń: `python litert-rozdziel/scripts
 ## Raport tłumaczeń katalogu
 
 Na końcu pracy nad katalogiem `litert-rozdziel` zapisuje w nim plik `Raport tłumaczeń katalogu <NAZWA>.md` (`scripts/raport_katalogu.py`): podsumowanie wskaźników (liczba plików, zgodność układu linii z oryginałem, cięcia tur, akapity, podwojone słowa, resztki błędów słownika, linie możliwie nieprzetłumaczone), przebieg (słownik, czkawka, naprawy U+FFFD, kopia nadpisanych wyników, ostrzeżenia), sekcję poprawek ręcznych (z pliku `<Katalog>_poprawki_reczne.txt`), listę plików z flagami i tabelę wszystkich plików. Flagi: `--bez-raportu`, `--tylko-raport` (ponowne wygenerowanie dla istniejących tłumaczeń).
+
+## Ponowne tłumaczenie katalogu (etapowanie)
+
+Gdy katalog był już tłumaczony (ma podkatalog `org` z oryginałami i stare `X pl.txt`), `litert` bierze do scalenia WSZYSTKIE oryginały z `org` oraz nowe pliki z katalogu głównego (nigdy plików `pl` ani technicznych), a po tłumaczeniu nowszym modelem DeepL `litert-rozdziel` działa tak, żeby **stare tłumaczenie nigdy nie zostało zniszczone przez nowe, które nie przejdzie weryfikacji**:
+
+1. **Etapowanie:** nowe wyniki powstają w podkatalogu `_nowe_tlumaczenia` i tam przechodzą wszystko (słownik, czkawka, składanie linii, kontrola, sprzątanie, akapity, cięcie tur). Stare tłumaczenia w katalogu głównym są przez cały czas nietknięte.
+2. **Podmiana:** dopiero po sukcesie wszystkich etapów stare wersje trafiają do zipa `Downloads\<Katalog>_przed_nadpisaniem_<data>.zip`, a nowe je zastępują; dopiero potem powstaje raport.
+3. **Porażka** (pętla, brak tłumaczenia, nieudana kontrola): stare zostają, nowe czekają w `_nowe_tlumaczenia`; ręczne poprawki robi się tam, a `rozdziel KATALOG --tylko-sprzatanie` wykrywa etapowanie, kontroluje i na końcu robi podmianę. Awaryjnie `--tylko-podmien` podmienia bez ponownej kontroli.
+4. Pierwsze tłumaczenie katalogu (brak starych wyników) działa bez etapowania, a `--nie-nadpisuj` pomija istniejące wyniki.
+
+## Zmiana nazwy katalogu po scaleniu
+
+Katalog bywa przemianowywany po `scal` (np. `Katalog_3` → `Katalog_4`), a pliki techniczne zachowują stary przedrostek (`Katalog_3_all_N.txt`, `Katalog_3_spis_scalenia.txt`, zip z DeepL z `Katalog_3_all_N pl.txt`). `rozdziel` sam to obsługuje: gdy nie ma spisu o nazwie katalogu, a leży dokładnie jeden `*_spis_scalenia.txt`, używa go (komunikat `INFO: katalog zmienil nazwe po scaleniu`); przy kilku spisach kończy się błędem z listą. Raport i listy dostają nową nazwę katalogu.
 
 ## Twardo zawinięte linie → akapity
 
@@ -113,7 +128,7 @@ Niektóre stare pliki mają cudzysłowy i apostrofy zapisane osobnymi bajtami (`
 
 ## Słownik poprawek DeepL
 
-`litert-rozdziel/poprawki_deepl.txt` (`błędna => poprawna`) zawiera systematyczne błędy DeepL (np. `polizaj` → `poliż`). `rozdziel` stosuje je automatycznie przy zapisie wyników, a `rozdziel KATALOG --tylko-poprawki [--sucho]` poprawia istniejące tłumaczenia. Reguły dotyczą błędów typu „nieistniejące słowo"; formy, które istnieją w języku, ale są złe w kontekście, dopisuje się dopiero na zgłoszenie. Kandydatów na nowe reguły znajduje `litert-rozdziel/scripts/kandydaci_slownika.py KATALOG` (słowa spoza słownika `pl_PL`, domyślnie tylko formy rozkazujące i `-zili`; pełny skan dużego zbioru trwa ok. 10 minut).
+`litert-rozdziel/poprawki_deepl.txt` (`błędna => poprawna`) zawiera systematyczne błędy DeepL (np. `polizaj` → `poliż`). `rozdziel` stosuje je automatycznie przy zapisie wyników (obecnie 157 aktywnych reguł; opis kolejnych partii w `litert-rozdziel/SKILL.md`), a `rozdziel KATALOG --tylko-poprawki [--sucho]` poprawia istniejące tłumaczenia. Reguły dotyczą błędów typu „nieistniejące słowo"; formy, które istnieją w języku, ale są złe w kontekście, dopisuje się dopiero na zgłoszenie. Kandydatów na nowe reguły znajduje `litert-rozdziel/scripts/kandydaci_slownika.py KATALOG` (słowa spoza słownika `pl_PL`, domyślnie tylko formy rozkazujące i `-zili`; pełny skan dużego zbioru trwa ok. 10 minut).
 
 ## Duplikaty
 
@@ -121,11 +136,11 @@ Niektóre stare pliki mają cudzysłowy i apostrofy zapisane osobnymi bajtami (`
 
 ## Gdy DeepL wpadnie w pętlę
 
-Przy przeciągniętych okrzykach w oryginale ("Daddddyyyy!!!") DeepL czasem generuje setki powtórzonych liter i gubi resztę linii. Kontrola w `litert-rozdziel` to wykrywa (próg `--min-ciag`; wykrywa też pętle całych słów) i wstrzymuje kasowanie. Krótkie linie poprawia się ręcznie na podstawie oryginału (z kopią zapasową i sprawdzeniem, że zmienia się tylko ta linia), a dłuższe przez plik pomocniczy z linii oryginału ze skróconymi przeciągnięciami, tłumaczony w DeepL, i podmianę całych linii (`dlugie_linie.py --petle`). Po naprawie `rozdziel KATALOG --tylko-sprzatanie` kończy kontrolę, sprzątanie i cięcie tur. Procedura jest opisana w `litert-rozdziel/SKILL.md`. Pętlom zapobiega skracanie przeciągniętych liter w tekście wysyłanym do DeepL, które `litert` robi domyślnie (`--bez-skracania` je wyłącza; oryginały zostają bez zmian).
+Przy przeciągniętych okrzykach w oryginale ("Daddddyyyy!!!") DeepL czasem generuje setki powtórzonych liter i gubi resztę linii. Kontrola w `litert-rozdziel` to wykrywa (próg `--min-ciag`; wykrywa też pętle całych słów) i wstrzymuje kasowanie. Krótkie linie poprawia się ręcznie na podstawie oryginału (z kopią zapasową i sprawdzeniem, że zmienia się tylko ta linia), a dłuższe przez plik pomocniczy z linii oryginału ze skróconymi przeciągnięciami, tłumaczony w DeepL, i podmianę całych linii (`dlugie_linie.py --petle`). Po naprawie `rozdziel KATALOG --tylko-sprzatanie` kończy kontrolę, sprzątanie i cięcie tur. Procedura jest opisana w `litert-rozdziel/SKILL.md`. Pętlom zapobiega skracanie przeciągniętych liter w tekście wysyłanym do DeepL, które `litert` robi domyślnie (`--bez-skracania` je wyłącza; oryginały zostają bez zmian). Kontrola pętli słów ma próg 10 powtórzeń (`--min-petla-slow`, `0` wyłącza ją); przy fałszywym alarmie, np. onomatopei `Klik, klik, klik…` poprawnie przetłumaczonej z oryginału, po sprawdzeniu kontekstu można dokończyć sprzątanie z wyższym progiem (prawdziwe pętle miały dotąd ≥19 powtórzeń).
 
 ## Kodowanie i polskie znaki
 
-Oba skrypty czytają pliki z automatycznym wykrywaniem kodowania (UTF-16 z BOM, UTF-8 z BOM lub bez; dla angielskich plików źródłowych dalej cp1252, a awaryjnie cp1250), a zapisują zawsze UTF-8 bez BOM z końcami linii LF. Dzięki temu polskie znaki, typograficzne apostrofy i cudzysłowy nie giną po drodze. Skrypty ostrzegają (`UWAGA`), gdy plik nie jest UTF-8, ma uszkodzone znaki (np. `Å‚`, `Ä…`, U+FFFD) albo przetłumaczony plik nie zawiera żadnej polskiej litery.
+Oba skrypty czytają pliki z automatycznym wykrywaniem kodowania (UTF-16 z BOM, UTF-8 z BOM lub bez; dla angielskich plików źródłowych dalej cp1252, a awaryjnie cp1250), a zapisują zawsze UTF-8 bez BOM z końcami linii LF. Dzięki temu polskie znaki, typograficzne apostrofy i cudzysłowy nie giną po drodze. Skrypty ostrzegają (`UWAGA`), gdy plik nie jest UTF-8, ma uszkodzone znaki (np. `Å‚`, `Ä…`, U+FFFD) albo przetłumaczony plik nie zawiera żadnej polskiej litery. Wielkość liter w rozszerzeniu nie ma znaczenia: oryginały `.TXT` obsługiwane są tak samo jak `.txt` (dawniej plan dzielenia linii dla `.TXT` nie był wczytywany i kawałki nie były składane).
 
 ## Użycie jako skill Claude
 
