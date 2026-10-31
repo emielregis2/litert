@@ -45,7 +45,7 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 
 - granice wyznacza wyłącznie numer ze znacznika (nazwa mogła zostać przetłumaczona),
 - nazwy plików wynikowych pochodzą ze spisu,
-- **domyślnie nadpisuje istniejące pliki wynikowe** (od 2026-10-28), ale najpierw zapisuje ich stare wersje w zipie `Downloads\<Katalog>_przed_nadpisaniem_<data>.zip`; flaga `--nie-nadpisuj` przywraca dawne zachowanie (pomijanie i zgłaszanie),
+- **domyślnie zastępuje istniejące tłumaczenia nowymi, ale dopiero po sukcesie wszystkich etapów (etapowanie, od 2026-10-29):** nowe wyniki powstają i przechodzą cały `rozdziel` w podkatalogu `_nowe_tlumaczenia`, stare zostają nietknięte; po sukcesie trafiają do zipa `Downloads\<Katalog>_przed_nadpisaniem_<data>.zip`, a nowe je zastępują. Gdy coś się nie powiedzie, stare pozostają, a nowe czekają do poprawek (`--tylko-sprzatanie`); `--tylko-podmien` to tryb awaryjny, `--nie-nadpisuj` pomija istniejące wyniki,
 - zgłasza brakujące, zdublowane i nadmiarowe znaczniki; nie zapisuje pliku, który mógłby się skleić z sąsiednim,
 - brakujące przetłumaczone pliki wypakowuje sam z archiwum `.zip` z DeepL leżącego w katalogu (tylko brakujące, bez nadpisywania; wyłączane flagą `--bez-zip`),
 - pojedyncze uszkodzone znaki U+FFFD zwrócone przez DeepL usuwa z wyniku automatycznie, z raportem (sekcja `NAPRAWA U+FFFD` i plik `..._raport_naprawy.txt`); do `--max-fffd` na plik (domyślnie 10), więcej to ostrzeżenie,

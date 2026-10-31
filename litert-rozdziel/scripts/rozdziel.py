@@ -47,6 +47,9 @@ POLSKIE = re.compile("[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]")
 ZEPSUTE = re.compile("Ä…|Ä™|Ä‡|Å‚|Å„|Å›|Åº|Å¼|Ăł|Ã³|\ufffd")
 
 
+STAGING = "_nowe_tlumaczenia"      # katalog etapowania: nowe wyniki (przy ponownym tlumaczeniu) przechodza tu WSZYSTKIE etapy i zastepuja stare dopiero po sukcesie
+
+
 def czytaj(path):
     """Odczyt z wykrywaniem kodowania: UTF-16 (BOM) -> UTF-8 (z BOM lub bez) -> awaryjnie cp1250."""
     raw = open(path, "rb").read()
@@ -578,11 +581,11 @@ def _wypisz_tury(d, szczegoly, seps, sucho=False):
                 fh.write("%6d  %s\n" % (c, f))
 
 
-def postprodukcja_tury(d, wyniki, tryb="auto", narracja=True):
+def postprodukcja_tury(d, wyniki, tryb="auto", narracja=True, wd=None):
     """Po udanym sprzataniu: ciecie linii na zmianach mowcy w plikach wynikowych (po kontroli ukladu linii wzgledem oryginalow)."""
     szczegoly, seps = [], set()
     for w in wyniki:
-        p = os.path.join(d, w)
+        p = os.path.join(wd or d, w)
         if not os.path.isfile(p):
             continue
         t = open(p, "rb").read().decode("utf-8")
@@ -593,6 +596,49 @@ def postprodukcja_tury(d, wyniki, tryb="auto", narracja=True):
             with open(p, "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(nowy)
     _wypisz_tury(d, szczegoly, seps)
+
+
+def promuj_nowe_wyniki(d, wd, wyniki):
+    """PODMIANA: dopiero gdy wszystkie nowe wyniki przeszly WSZYSTKIE etapy (kontrola, sprzatanie, akapity, ciecie tur) stare tlumaczenia sa zastepowane nowymi.
+    Stare wersje ISTNIEJACYCH wynikow trafiaja najpierw do zipa w Downloads. Zwraca liczbe podmienionych plikow."""
+    if wd == d or not os.path.isdir(wd):
+        return 0
+    import time
+    nowe = [w for w in wyniki if os.path.isfile(os.path.join(wd, w))]
+    if not nowe:
+        return 0
+    zp = zabezpiecz_istniejace_wyniki(d, nowe)
+    if zp:
+        KOPIA_NADPISANIA[0] = zp
+    for w in nowe:
+        src, dst = os.path.join(wd, w), os.path.join(d, w)
+        for proba in range(6):
+            try:
+                os.replace(src, dst)
+                break
+            except PermissionError:
+                if proba == 5:
+                    raise
+                time.sleep(1.0)
+    try:
+        os.rmdir(wd)
+    except OSError:
+        pass
+    print("PODMIANA: %d nowych tlumaczen zastapilo stare w katalogu glownym (stare wersje zachowano w: %s)" % (len(nowe), KOPIA_NADPISANIA[0] or "brak starych plikow do zachowania"))
+    return len(nowe)
+
+
+def tylko_podmien(d):
+    """Awaryjnie: podmienia stare tlumaczenia nowymi z katalogu etapowania (bez spisu i bez ponownej kontroli)."""
+    wd = os.path.join(d, STAGING)
+    if not os.path.isdir(wd):
+        print("BLAD: brak katalogu etapowania " + wd)
+        return 1
+    wyniki = sorted(f for f in os.listdir(wd) if f.lower().endswith(" pl.txt") and os.path.isfile(os.path.join(wd, f)))
+    if not wyniki:
+        print("BLAD: katalog etapowania nie zawiera tlumaczen")
+        return 1
+    return 0 if promuj_nowe_wyniki(d, wd, wyniki) else 1
 
 
 def zabezpiecz_istniejace_wyniki(d, wyniki):
@@ -685,14 +731,14 @@ def _wypisz_akapity(d, szczegoly, sucho=False):
                 fh.write("   %6d -> %-6d  (zawiniete bloki: %3.0f%%)  %s\n" % (p, q, 100 * u, f))
 
 
-def postprodukcja_akapity(d, wyniki, wymus=False):
+def postprodukcja_akapity(d, wyniki, wymus=False, wd=None):
     """Po udanym sprzataniu, PRZED cieciem tur: laczy twardo zawiniete linie w akapity (akapity.py). Pliki niezawiniete nie sa ruszane."""
     ak = _akapity_modul()
     if not ak:
         return
     szczegoly = []
     for w in wyniki:
-        p = os.path.join(d, w)
+        p = os.path.join(wd or d, w)
         if not os.path.isfile(p):
             continue
         try:
@@ -1058,13 +1104,13 @@ def _sprawdz_akapity(nazwa, tekst, op, problemy, krotko=20):
         problemy.append("KONTROLA: w wyniku %s brakuje %d akapitow oryginalu (DeepL je pominal lub scalil z sasiednia linia - zweryfikuj tlumaczeniem pliku pomocniczego): linie oryginalu %s" % (nazwa, len(duze), ", ".join(duze[:10])))
 
 
-def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60, kontrola_akapitow=True, min_run_slow=10):
+def zweryfikuj_wyniki(d, org, oryginaly, wyniki, min_ciag=60, kontrola_akapitow=True, min_run_slow=10, wd=None):
     """Kontrola, czy kazdy wynik jest zapisany i kompletny: istnieje, nie jest pusty, jest poprawnym UTF-8,
     nie ma znacznikow granic, nie ma 'petli' (dlugiego ciagu tego samego znaku, ktorego brak w oryginale) i nie jest
     podejrzanie maly wzgledem oryginalu (ucięte tlumaczenie)."""
     problemy = []
     for o, w in zip(oryginaly, wyniki):
-        wp = os.path.join(d, w)
+        wp = os.path.join(wd or d, w)
         if not os.path.isfile(wp):
             problemy.append("KONTROLA: brak wyniku " + w)
             continue
@@ -1265,6 +1311,7 @@ def main():
     ap.add_argument("--tylko-akapity", action="store_true", help="tylko lacz twardo zawiniete linie w akapity w istniejacych tlumaczeniach ' pl.txt' katalogu (z --sucho: tylko policz)")
     ap.add_argument("--bez-raportu", action="store_true", help="nie zapisuj pliku 'Raport tlumaczen katalogu <NAZWA>.md' po zakonczeniu pracy")
     ap.add_argument("--tylko-raport", action="store_true", help="tylko zapisz (ponownie) 'Raport tlumaczen katalogu <NAZWA>.md' dla istniejacych tlumaczen katalogu (oryginaly w org)")
+    ap.add_argument("--tylko-podmien", action="store_true", help="awaryjnie: podmien stare tlumaczenia nowymi z podkatalogu _nowe_tlumaczenia (bez ponownej kontroli); stare ida do zipa w Downloads")
     a = ap.parse_args()
     a.nadpisz = not a.nie_nadpisuj        # od 2026-10-28 nadpisywanie jest domyslne
     d = os.path.normpath(a.katalog)
@@ -1279,6 +1326,8 @@ def main():
         return tylko_akapity(d, a.sucho, a.kopia or None, a.akapity_wymus)
     if a.tylko_raport:
         return tylko_raport(d, reguly)
+    if a.tylko_podmien:
+        return tylko_podmien(d)
     spis_nazwa = os.path.basename(d) + "_spis_scalenia.txt"
     spis_path = os.path.join(d, spis_nazwa)
     if not os.path.exists(spis_path):            # katalog zmienil nazwe po scaleniu (np. Katalog_3 -> Katalog_4): pliki techniczne maja stary przedrostek
@@ -1306,29 +1355,50 @@ def main():
     pliki, nazwy, w_pliku, podzielone = parsuj_spis(spis_path)
     if a.tylko_sprzatanie:      # sama kontrola kompletnosci i sprzatanie, bez rozdzielania
         oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
-        brak = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
-        weryf = [] if brak else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow, a.min_petla_slow)
+        wd = os.path.join(d, STAGING)
+        if os.path.isdir(wd) and any(os.path.isfile(os.path.join(wd, w)) for w in wyniki):
+            print("ETAPOWANIE: wykryto podkatalog %s - kontroluje i obrabiam nowe wyniki stamtad; stare tlumaczenia w katalogu glownym zostana zastapione dopiero po sukcesie" % STAGING)
+        else:
+            wd = d
+        brak = [w for w in wyniki if not os.path.exists(os.path.join(wd, w))]
+        weryf = [] if brak else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow, a.min_petla_slow, wd)
         for w in brak:
             print("UWAGA: BRAK wyniku:", w)
         for w in weryf:
             print("UWAGA:", w)
         if brak or weryf or not wyniki:
             print("SPRZATANIE: nic nie przenosze i niczego nie kasuje - kontrola nie przeszla (brakujace wyniki: %d, uwagi: %d)" % (len(brak), len(weryf)))
+            if wd != d:
+                print("ETAPOWANIE: STARE TLUMACZENIA W KATALOGU GLOWNYM ZOSTALY NIETKNIETE; nowe wyniki czekaja w %s (popraw je tam i uruchom ponownie --tylko-sprzatanie)" % STAGING)
             return 2
         print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
         wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, os.path.basename(d) + "_raport_naprawy.txt", a.zachowaj_techniczne)
         if not a.bez_akapitow and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
-            postprodukcja_akapity(d, wyniki, a.akapity_wymus)
+            postprodukcja_akapity(d, wyniki, a.akapity_wymus, wd)
         if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
-            postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl)
+            postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl, wd)
+        promuj_nowe_wyniki(d, wd, wyniki)                # podmiana starych tlumaczen nowymi: dopiero po sukcesie wszystkich etapow
         if not a.bez_raportu:
-            zapisz_raport_katalogu(d, wyniki, None, reguly)
+            ctx_s = None
+            if KOPIA_NADPISANIA[0] and _raport_modul():
+                ctx_s = _raport_modul().wczytaj_przebieg(d) or None
+                if ctx_s is not None:
+                    ctx_s["kopia_zip"] = KOPIA_NADPISANIA[0]
+            zapisz_raport_katalogu(d, wyniki, ctx_s, reguly)
         return 0
     if not a.bez_zip:   # brakujace przetlumaczone pliki wypakuj z archiwum .zip z DeepL (jesli lezy w katalogu)
         oczek_pl = [pl[:-4] + " pl.txt" for pl in pliki] + [c[:-4] + " pl.txt" for _, cz in podzielone for c in cz]
         uzupelnij_z_zip(d, oczek_pl)
-    if a.nadpisz:               # nadpisywanie jest domyslne: stare wyniki (jesli sa) trafiaja najpierw do zipa w Downloads
-        KOPIA_NADPISANIA[0] = zabezpiecz_istniejace_wyniki(d, oczekiwane_pliki(nazwy, pliki, podzielone)[1])
+    wd = d                      # katalog wynikow; przy PONOWNYM tlumaczeniu (w katalogu sa stare wyniki) nowe powstaja w podkatalogu etapowania
+    if a.nadpisz:
+        ist = [w for w in oczekiwane_pliki(nazwy, pliki, podzielone)[1] if os.path.isfile(os.path.join(d, w))]
+        if ist:
+            import shutil
+            wd = os.path.join(d, STAGING)
+            if os.path.isdir(wd):
+                shutil.rmtree(wd)                 # pozostalosc po wczesniejszym, niedokonczonym przebiegu: ten przebieg ja zastepuje
+            os.makedirs(wd)
+            print("ETAPOWANIE: w katalogu jest %d starych tlumaczen. Nowe powstaja w podkatalogu %s i zastapia stare DOPIERO po przejsciu wszystkich etapow (kontrola, sprzatanie, akapity, ciecie tur); do tego czasu stare zostaja nietkniete" % (len(ist), STAGING))
     problemy, zapisane = [], 0
     TEKSTY_CZESCI = {}                         # nr czesci duzego pliku -> przetlumaczony tekst (skladane po przejrzeniu calej serii)
     naprawy = []                                                   # usuniete znaki U+FFFD (do raportu)
@@ -1376,7 +1446,7 @@ def main():
                 continue
             tekst = "\n".join(czesci[nr]).strip("\n") + "\n"
             out_name = nazwy[nr][:-4] + " pl.txt"
-            out_path = os.path.join(d, out_name)
+            out_path = os.path.join(wd, out_name)
             if os.path.exists(out_path) and not a.nadpisz:
                 problemy.append("POMINIETO (plik juz istnieje; uruchomiono z --nie-nadpisuj): " + out_name)
                 continue
@@ -1393,7 +1463,7 @@ def main():
     # Skladanie duzych plikow z czesci rozrzuconych po seriach Katalog_all_N pl.txt: tylko gdy sa WSZYSTKIE czesci (inaczej nic nie zapisujemy)
     for orig, nrs in sorted(WIRT_CZESCI.items(), key=lambda kv: kv[0].lower()):
         out_name = orig[:-4] + " pl.txt"
-        out_path = os.path.join(d, out_name)
+        out_path = os.path.join(wd, out_name)
         m_ = WIRT[nrs[0]][2]
         if len(nrs) != m_ or [WIRT[x][1] for x in nrs] != list(range(1, m_ + 1)):
             problemy.append("%s: spis jest niekompletny (czesci %s z %d) - nie zlozono" % (out_name, [WIRT[x][1] for x in nrs], m_))
@@ -1422,7 +1492,7 @@ def main():
     # Skladanie przetlumaczonych czesci duzych plikow (STARY format): Nazwa_1 pl.txt + Nazwa_2 pl.txt + ... -> Nazwa pl.txt
     for orig, czesci_nazwy in podzielone:
         out_name = orig[:-4] + " pl.txt"
-        out_path = os.path.join(d, out_name)
+        out_path = os.path.join(wd, out_name)
         pl_czesci = [c[:-4] + " pl.txt" for c in czesci_nazwy]
         brak = [c for c in pl_czesci if not os.path.exists(os.path.join(d, c))]
         if brak:
@@ -1492,24 +1562,33 @@ def main():
     # Kontrola kompletnosci; gdy wszystko OK: oryginaly do org, pliki techniczne kasowane (--zachowaj-techniczne: do org)
     if a.bez_org:
         print("ORG: pominieto (--bez-org)")
+        if wd != d:                                 # bez kontroli nie ma na co czekac: podmiana od razu, o ile nic nie zgloszono
+            if problemy:
+                print("ETAPOWANIE: zgloszono uwagi - STARE TLUMACZENIA ZOSTALY NIETKNIETE; nowe wyniki czekaja w %s" % STAGING)
+            else:
+                promuj_nowe_wyniki(d, wd, oczekiwane_pliki(nazwy, pliki, podzielone)[1])
     else:
         krytyczne = [p for p in problemy if not p.startswith("POMINIETO")]
         oryginaly, wyniki, tech = oczekiwane_pliki(nazwy, pliki, podzielone)
-        brak_wynikow = [w for w in wyniki if not os.path.exists(os.path.join(d, w))]
-        weryf = [] if brak_wynikow else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow, a.min_petla_slow)
+        brak_wynikow = [w for w in wyniki if not os.path.exists(os.path.join(wd, w))]
+        weryf = [] if brak_wynikow else zweryfikuj_wyniki(d, os.path.join(d, "org"), oryginaly, wyniki, a.min_ciag, not a.bez_kontroli_akapitow, a.min_petla_slow, wd)
         for w in weryf:
             print("UWAGA:", w)
         problemy.extend(weryf)
         if krytyczne or brak_wynikow or weryf or not wyniki:
             print("ORG: nie przenosze plikow i niczego nie kasuje - rozdzielanie niekompletne (ostrzezenia: %d, brakujace wyniki: %d, uwagi kontroli: %d)"
                   % (len(krytyczne), len(brak_wynikow), len(weryf)))
+            if wd != d:
+                print("ETAPOWANIE: STARE TLUMACZENIA W KATALOGU GLOWNYM ZOSTALY NIETKNIETE; nowe wyniki czekaja w %s (popraw je tam i uruchom --tylko-sprzatanie; stare zostana zastapione dopiero po sukcesie)" % STAGING)
         else:
             print("KONTROLA: %d z %d wynikow zapisanych i kompletnych" % (len(wyniki), len(wyniki)))
             wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, a.zachowaj_techniczne)
             if not a.bez_akapitow and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
-                postprodukcja_akapity(d, wyniki, a.akapity_wymus)
+                postprodukcja_akapity(d, wyniki, a.akapity_wymus, wd)
             if not a.bez_tur_pl and all(os.path.exists(os.path.join(d, "org", o)) for o in oryginaly):
-                postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl)
+                postprodukcja_tury(d, wyniki, a.tury_sep, not a.bez_narracji_pl, wd)
+            promuj_nowe_wyniki(d, wd, wyniki)            # podmiana starych tlumaczen nowymi: dopiero po sukcesie wszystkich etapow
+            ctx_przebiegu["kopia_zip"] = KOPIA_NADPISANIA[0]
             if not a.bez_raportu:
                 zapisz_raport_katalogu(d, wyniki, ctx_przebiegu, reguly)
     return 0 if not problemy else 2
