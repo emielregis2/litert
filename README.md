@@ -25,7 +25,7 @@ Oryginalna Nazwa pl.txt
 
 Scala pliki `.txt` z katalogu w jak najmniej plików zbiorczych o rozmiarze do 900 000 bajtów.
 
-- **gdy katalog ma podkatalog `org`, scala WSZYSTKIE oryginały z `org` (poza technicznymi) oraz nowe pliki z katalogu głównego** (nowsza wersja o tej samej nazwie wygrywa), co pozwala ponownie przetłumaczyć katalog nowszym modelem DeepL (nowe tłumaczenia nadpisują stare w `rozdziel`),
+- **gdy katalog ma podkatalog `org`, scala WSZYSTKIE oryginały z `org` (poza technicznymi) oraz nowe pliki z katalogu głównego** (nowsza wersja o tej samej nazwie wygrywa), co pozwala ponownie przetłumaczyć katalog nowszym modelem DeepL (nowe tłumaczenia zastępują stare w `rozdziel` po sukcesie wszystkich etapów); **`--bez-org`** ignoruje `org` i scala tylko pliki z katalogu głównego (gdy chcesz przetłumaczyć wyłącznie nowe pliki, a oryginały z `org` zostawić w spokoju),
 - **nigdy nie scala wersji przetłumaczonych** (twarda zasada: nazwa kończąca się na `pl`, np. `... pl.txt`, `..._pl.txt`, `... PL.txt`, `... pl (1).txt`; podwójna spacja też; ich kopie też są pomijane); kopie (`..._copy(1).txt`) nie są scalane, ale przed scaleniem są analizowane: nowsza i większa kopia zastępuje oryginał (oryginał trafia do `_zastapione`), pozostałe przypadki trafiają do raportu "do decyzji" (flagi `--tylko-analiza-kopii`, `--nie-zastepuj-kopii`),
 - pakuje pliki wg rozmiaru (First Fit Decreasing), w każdym pliku scalenia pliki idą alfabetycznie,
 - przed każdym plikiem wstawia znacznik `=====[[N|Nazwa]]=====`,
@@ -35,7 +35,7 @@ Scala pliki `.txt` z katalogu w jak najmniej plików zbiorczych o rozmiarze do 9
 - niczego nie kasuje: oryginały i przetłumaczone pliki zostają nietknięte (jedyny wyjątek: nowsza i większa kopia `_copy` zastępuje oryginał, a oryginał trafia do `_zastapione`).
 
 ```
-python litert/scripts/scal.py "C:\sciezka\KATALOG" [--limit 900000] [--nie-zastepuj-kopii] [--tylko-analiza-kopii]
+python litert/scripts/scal.py "C:\sciezka\KATALOG" [--limit 900000] [--bez-org] [--nie-zastepuj-kopii] [--tylko-analiza-kopii]
                              [--bez-skracania] [--bez-dzielenia] [--bez-tur] [--bez-narracji] [--limit-linii 800]
 ```
 
