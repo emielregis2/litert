@@ -223,3 +223,7 @@ tatowym samochodem => samochodem taty
 tatowego jeepa => jeepa taty
 tatowym biurku => biurku taty
 tatowe graty => graty taty
+
+# Dopisane 2026-11-04
+# piastujacymi: DeepL daje 'piastujacymi' (np. 'ustami piastujacymi cenna lechtaczke') zamiast 'pieszczacymi'. 'piastowac' jest poprawne (urzad, stanowisko, 'cradle'), wiec zamieniamy TYLKO te forme (korpus: 1 trafienie, bez poprawnych uzyc tej formy); 'piastuje', 'piastujace', 'piastujac' itd. zostaja bez zmian
+piastującymi => pieszczącymi
