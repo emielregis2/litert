@@ -45,6 +45,7 @@ Rozdziela przetłumaczone pliki scalenia (`NazwaKatalogu_all_N pl.txt`) na pliki
 
 - granice wyznacza wyłącznie numer ze znacznika (nazwa mogła zostać przetłumaczona),
 - nazwy plików wynikowych pochodzą ze spisu,
+- **stała reguła przy pętlach i utraconych liniach (od 2026-11-04):** najpierw próba samodzielnej naprawy (wariant C), a miejsca, których nie można naprawić, są automatycznie przyjmowane do wiadomości (wariant B): sprzątanie z progami podniesionymi minimalnie ponad zgłoszone ciągi, wpis w „Poprawkach ręcznych” raportu i lista lokalizacji w `Downloads\<Katalog>_pozycje_napraw.txt`, bez pytania o wariant,
 - **domyślnie zastępuje istniejące tłumaczenia nowymi, ale dopiero po sukcesie wszystkich etapów (etapowanie, od 2026-10-29):** nowe wyniki powstają i przechodzą cały `rozdziel` w podkatalogu `_nowe_tlumaczenia`, stare zostają nietknięte; po sukcesie trafiają do zipa `Downloads\<Katalog>_przed_nadpisaniem_<data>.zip`, a nowe je zastępują. Gdy coś się nie powiedzie, stare pozostają, a nowe czekają do poprawek (`--tylko-sprzatanie`); `--tylko-podmien` to tryb awaryjny, `--nie-nadpisuj` pomija istniejące wyniki,
 - zgłasza brakujące, zdublowane i nadmiarowe znaczniki; nie zapisuje pliku, który mógłby się skleić z sąsiednim,
 - brakujące przetłumaczone pliki wypakowuje sam z archiwum `.zip` z DeepL leżącego w katalogu (tylko brakujące, bez nadpisywania; wyłączane flagą `--bez-zip`),
