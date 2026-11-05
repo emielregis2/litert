@@ -114,7 +114,7 @@ Po `scal` katalog bywa przemianowywany (np. `Katalog_3` → `Katalog_4`), a plik
 
 ## Raport tłumaczeń katalogu (zapisywany automatycznie na końcu pracy)
 
-Po zakończeniu pracy nad katalogiem (kontrola przeszła, oryginały w `org`, pliki techniczne posprzątane, akapity i cięcie tur wykonane) `rozdziel` zapisuje **w samym katalogu** plik **`Raport tłumaczeń katalogu <NAZWA>.md`** (np. `Raport tłumaczeń katalogu Catmoore_4.md`; kod w `scripts/raport_katalogu.py`). Zawartość:
+Po zakończeniu pracy nad katalogiem (kontrola przeszła, oryginały w `org`, pliki techniczne posprzątane, akapity i cięcie tur wykonane) `rozdziel` zapisuje **w podkatalogu `org`** (od 2026-11-05; w katalogu głównym zostają same tłumaczenia; gdy `org` nie istnieje, np. przy `--bez-org`, raport trafia do katalogu głównego; stary raport leżący w katalogu głównym jest zastępowany nowym w `org`) plik **`Raport tłumaczeń katalogu <NAZWA>.md`** (np. `Raport tłumaczeń katalogu Catmoore_4.md`; kod w `scripts/raport_katalogu.py`). Zawartość:
 - **Podsumowanie wskaźników:** liczba plików, znaki i mediana stosunku długości, zgodność układu linii z oryginałem, cięcia tur, łączenie akapitów, linie dłuższe niż 800 znaków, podwojone słowa na 10 tys. słów, resztki znanych błędów słownika, formy `mamusiow*`, linie możliwie nieprzetłumaczone, liczba plików z flagami.
 - **Przebieg:** słownik (zamiany na regułę), czkawka (autopoprawki i miejsca do przeglądu z kontekstem), naprawy U+FFFD, kopia zapasowa nadpisanych wyników, ostrzeżenia z przebiegu.
 - **Poprawki ręczne**, lista plików z flagami, lista podwojonych słów do wglądu i tabela wszystkich plików (znaki, stosunek, niepuste linie, cięcia, flagi).

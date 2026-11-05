@@ -19,7 +19,7 @@ Oryginalna Nazwa pl.txt
 
 1. **Scalanie:** `scal C:\...\KATALOG`. Powstają `KATALOG_all_N.txt`, `KATALOG_spis_scalenia.txt` oraz ewentualnie części dużych plików (`Nazwa_N.txt`). Przed wysłaniem do DeepL długie linie są cięte (na zmianach mówcy i do 800 znaków), a przeciągnięte litery skracane.
 2. **Tłumaczenie ręcznie w DeepL:** wgrywasz pliki `KATALOG_all_N.txt` i części dużych plików (nie spis i nie duże oryginały), a wyniki zapisujesz w tym samym katalogu z końcówką ` pl` (albo zostawiasz zip z DeepL).
-3. **Rozdzielanie:** `rozdziel C:\...\KATALOG`. Powstają pliki `Oryginalna Nazwa pl.txt`: skrypt składa pocięte linie, stosuje słownik poprawek, sprawdza czkawkę DeepL, kontroluje kompletność, przenosi oryginały do podkatalogu `org`, kasuje pliki techniczne (scalenia, spis, części, archiwum `.zip`) i na końcu tnie linie na zmianach mówcy. W katalogu głównym zostają same tłumaczenia (plus raport `Raport tłumaczeń katalogu <NAZWA>.md`). Przy **ponownym tłumaczeniu** katalogu (są już stare wyniki) nowe przechodzą wszystkie etapy w `_nowe_tlumaczenia` i zastępują stare dopiero po sukcesie (sekcja „Ponowne tłumaczenie katalogu”).
+3. **Rozdzielanie:** `rozdziel C:\...\KATALOG`. Powstają pliki `Oryginalna Nazwa pl.txt`: skrypt składa pocięte linie, stosuje słownik poprawek, sprawdza czkawkę DeepL, kontroluje kompletność, przenosi oryginały do podkatalogu `org`, kasuje pliki techniczne (scalenia, spis, części, archiwum `.zip`) i na końcu tnie linie na zmianach mówcy. W katalogu głównym zostają same tłumaczenia (raport `Raport tłumaczeń katalogu <NAZWA>.md` trafia do `org`). Przy **ponownym tłumaczeniu** katalogu (są już stare wyniki) nowe przechodzą wszystkie etapy w `_nowe_tlumaczenia` i zastępują stare dopiero po sukcesie (sekcja „Ponowne tłumaczenie katalogu”).
 
 ## litert
 
@@ -88,7 +88,7 @@ Ten sam przegląd dla istniejących tłumaczeń: `python litert-rozdziel/scripts
 
 ## Raport tłumaczeń katalogu
 
-Na końcu pracy nad katalogiem `litert-rozdziel` zapisuje w nim plik `Raport tłumaczeń katalogu <NAZWA>.md` (`scripts/raport_katalogu.py`): podsumowanie wskaźników (liczba plików, zgodność układu linii z oryginałem, cięcia tur, akapity, podwojone słowa, resztki błędów słownika, linie możliwie nieprzetłumaczone), przebieg (słownik, czkawka, naprawy U+FFFD, kopia nadpisanych wyników, ostrzeżenia), sekcję poprawek ręcznych (z pliku `<Katalog>_poprawki_reczne.txt`), listę plików z flagami i tabelę wszystkich plików. Flagi: `--bez-raportu`, `--tylko-raport` (ponowne wygenerowanie dla istniejących tłumaczeń).
+Na końcu pracy nad katalogiem `litert-rozdziel` zapisuje w jego podkatalogu `org` (od 2026-11-05; w katalogu głównym zostają same tłumaczenia) plik `Raport tłumaczeń katalogu <NAZWA>.md` (`scripts/raport_katalogu.py`): podsumowanie wskaźników (liczba plików, zgodność układu linii z oryginałem, cięcia tur, akapity, podwojone słowa, resztki błędów słownika, linie możliwie nieprzetłumaczone), przebieg (słownik, czkawka, naprawy U+FFFD, kopia nadpisanych wyników, ostrzeżenia), sekcję poprawek ręcznych (z pliku `<Katalog>_poprawki_reczne.txt`), listę plików z flagami i tabelę wszystkich plików. Flagi: `--bez-raportu`, `--tylko-raport` (ponowne wygenerowanie dla istniejących tłumaczeń).
 
 ## Ponowne tłumaczenie katalogu (etapowanie)
 

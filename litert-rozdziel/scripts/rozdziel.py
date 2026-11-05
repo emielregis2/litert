@@ -676,7 +676,7 @@ def _raport_modul():
 
 
 def zapisz_raport_katalogu(d, wyniki, ctx=None, reguly=None):
-    """Na koncu pracy nad katalogiem zapisuje w nim plik 'Raport tlumaczen katalogu <NAZWA>.md' (raport_katalogu.py). Nigdy nie przerywa pracy."""
+    """Na koncu pracy nad katalogiem zapisuje w jego podkatalogu org plik 'Raport tlumaczen katalogu <NAZWA>.md' (raport_katalogu.py). Nigdy nie przerywa pracy."""
     rk = _raport_modul()
     if not rk:
         return None

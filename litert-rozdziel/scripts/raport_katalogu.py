@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Raport kontrolny katalogu (litert-rozdziel): plik 'Raport tłumaczeń katalogu <NAZWA>.md' w opracowywanym katalogu.
+"""Raport kontrolny katalogu (litert-rozdziel): plik 'Raport tłumaczeń katalogu <NAZWA>.md' w podkatalogu org opracowywanego katalogu (gdy org nie istnieje, np. przy --bez-org, w samym katalogu; w katalogu glownym zostaja same tlumaczenia).
 
 Powstaje automatycznie na końcu pracy nad katalogiem (po kontroli, sprzątaniu, łączeniu akapitów i cięciu tur) albo na żądanie (rozdziel.py KATALOG --tylko-raport).
 Źródła: tłumaczenia w katalogu, oryginały w org, listy cięć i akapitów w org oraz dane przebiegu (słownik, czkawka, ostrzeżenia), które pełny przebieg rozdziel
@@ -192,12 +192,16 @@ def zbuduj(d, wyniki, ctx, zastosuj_poprawki=None, reguly=None):
 
 
 def zapisz_raport(d, wyniki, ctx=None, zastosuj_poprawki=None, reguly=None):
-    """Buduje i zapisuje raport w katalogu d. Zwraca (sciezka, liczba_flag)."""
+    """Buduje i zapisuje raport w podkatalogu org katalogu d (gdy org nie istnieje: w samym d). Zwraca (sciezka, liczba_flag)."""
     ctx = dict(ctx) if ctx else wczytaj_przebieg(d)
     tekst, nflag = zbuduj(d, wyniki, ctx, zastosuj_poprawki, reguly)
-    sciezka = os.path.join(d, nazwa_raportu(d))
+    org = os.path.join(d, "org")
+    sciezka = os.path.join(org if os.path.isdir(org) else d, nazwa_raportu(d))
     with open(sciezka, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(tekst)
+    stary = os.path.join(d, nazwa_raportu(d))            # raport z wczesniejszych przebiegow lezacy w katalogu glownym: nowy raport w org go zastepuje
+    if os.path.abspath(stary) != os.path.abspath(sciezka) and os.path.isfile(stary):
+        os.remove(stary)
     p = sciezka_przebiegu(d)
     if os.path.isfile(p):
         os.remove(p)
