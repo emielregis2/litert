@@ -227,3 +227,27 @@ tatowe graty => graty taty
 # Dopisane 2026-11-04
 # piastujacymi: DeepL daje 'piastujacymi' (np. 'ustami piastujacymi cenna lechtaczke') zamiast 'pieszczacymi'. 'piastowac' jest poprawne (urzad, stanowisko, 'cradle'), wiec zamieniamy TYLKO te forme (korpus: 1 trafienie, bez poprawnych uzyc tej formy); 'piastuje', 'piastujace', 'piastujac' itd. zostaja bez zmian
 piastującymi => pieszczącymi
+
+# Dopisane 2026-11-05
+# wijac -> wic: DeepL daje 'wijali sie', 'wijala sie' zamiast 'wili sie', 'wila sie' (czasownik 'wic sie': wile, wila, wilo, wili, wily; teraz wije, wiesz...). Bledna odmiana 'wijac' nie istnieje po polsku; korpus: wijali x41, wijalismy x25, wijeala x35, wijala x11 i inne. Poprawne formy (wije, wijac, wijacy, wije, wijesz, wijemy, wijecie, wila, wili) i zlozenia (zwijal, rozwijala, odwijali) zostaja bez zmian (regula lapie tylko cale slowa)
+wijali => wili
+wijaliśmy => wiliśmy
+wijaliście => wiliście
+wijał => wił
+wijała => wiła
+wijało => wiło
+wijały => wiły
+wijałam => wiłam
+wijałem => wiłem
+wijałeś => wiłeś
+wijałaś => wiłaś
+wijałyśmy => wiłyśmy
+wijałyście => wiłyście
+wijeł => wił
+wijeła => wiła
+wijeło => wiło
+wijeły => wiły
+wijełam => wiłam
+wijełem => wiłem
+wijam => wiję
+wijasz => wijesz
