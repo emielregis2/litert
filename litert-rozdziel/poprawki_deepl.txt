@@ -251,3 +251,7 @@ wijełam => wiłam
 wijełem => wiłem
 wijam => wiję
 wijasz => wijesz
+
+# Dopisane 2026-11-06
+# zrumienila sie -> zarumienila sie: DeepL daje 'zrumienila sie' (o rumiencu na twarzy) zamiast 'zarumienila sie'. Na prosbe Darka TYLKO ten zwrot; 'zrumienic' jest poprawne w kuchni ('zrumienila cebule', 'zrumienione ciasto'), wiec nie zamieniamy samego slowa ani innych form
+zrumieniła się => zarumieniła się
