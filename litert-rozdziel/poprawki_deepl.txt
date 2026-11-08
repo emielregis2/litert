@@ -255,3 +255,18 @@ wijasz => wijesz
 # Dopisane 2026-11-06
 # zrumienila sie -> zarumienila sie: DeepL daje 'zrumienila sie' (o rumiencu na twarzy) zamiast 'zarumienila sie'. Na prosbe Darka TYLKO ten zwrot; 'zrumienic' jest poprawne w kuchni ('zrumienila cebule', 'zrumienione ciasto'), wiec nie zamieniamy samego slowa ani innych form
 zrumieniła się => zarumieniła się
+
+# Dopisane 2026-11-08
+# gestnial -> nabrzmiewal (o czesci ciala: 'narzad, ktory gestnial pod wplywem jej dotyku'): DeepL daje 'gestnial' zamiast 'nabrzmiewal'. 'gestniec' jest poprawne o zupie, mgle, powietrzu, atmosferze, sokach ('powietrze gestnialo', 'atmosfera gestniala', 'soki gestnialy'), wiec reguly dotycza TYLKO formy 'gestnial' bezposrednio po podmiocie anatomicznym (narzad, kutas, penis, czlonek, fiut, trzon), z 'ktory' lub bez. Czas terazniejszy ('kutas gestnieje'), imieslowy ('gestniejacy kutas') i inne rodzaje ('gestniala', 'gestnialo') zostaja bez zmian
+narząd, który gęstniał => narząd, który nabrzmiewał
+narząd gęstniał => narząd nabrzmiewał
+kutas, który gęstniał => kutas, który nabrzmiewał
+kutas gęstniał => kutas nabrzmiewał
+penis, który gęstniał => penis, który nabrzmiewał
+penis gęstniał => penis nabrzmiewał
+członek, który gęstniał => członek, który nabrzmiewał
+członek gęstniał => członek nabrzmiewał
+fiut, który gęstniał => fiut, który nabrzmiewał
+fiut gęstniał => fiut nabrzmiewał
+trzon, który gęstniał => trzon, który nabrzmiewał
+trzon gęstniał => trzon nabrzmiewał
