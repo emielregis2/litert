@@ -270,3 +270,18 @@ fiut, który gęstniał => fiut, który nabrzmiewał
 fiut gęstniał => fiut nabrzmiewał
 trzon, który gęstniał => trzon, który nabrzmiewał
 trzon gęstniał => trzon nabrzmiewał
+
+# Dopisane 2026-11-09
+# gestnieje -> nabrzmiewa (czas terazniejszy, o czesci ciala: 'kutas gestnieje'): ten sam blad DeepL co 'gestnial' (dopisane 2026-11-08), na prosbe Darka takze w czasie terazniejszym (w korpusie 'kutas gestnieje' x41, 'trzon gestnieje' x5, 'penis gestnieje' x3). Reguly dotycza TYLKO formy 'gestnieje' bezposrednio po podmiocie anatomicznym (narzad, kutas, penis, czlonek, fiut, trzon), z 'ktory' lub bez; 'atmosfera gestnieje', 'powietrze gestnieje', 'sos gestnieje' zostaja. Imieslowy ('gestniejacy kutas') i inne rodzaje ('gestniala', 'gestnialo') bez zmian
+narząd, który gęstnieje => narząd, który nabrzmiewa
+narząd gęstnieje => narząd nabrzmiewa
+kutas, który gęstnieje => kutas, który nabrzmiewa
+kutas gęstnieje => kutas nabrzmiewa
+penis, który gęstnieje => penis, który nabrzmiewa
+penis gęstnieje => penis nabrzmiewa
+członek, który gęstnieje => członek, który nabrzmiewa
+członek gęstnieje => członek nabrzmiewa
+fiut, który gęstnieje => fiut, który nabrzmiewa
+fiut gęstnieje => fiut nabrzmiewa
+trzon, który gęstnieje => trzon, który nabrzmiewa
+trzon gęstnieje => trzon nabrzmiewa
