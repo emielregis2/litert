@@ -105,24 +105,25 @@ def dziel(txt, limit):
 
 
 def analizuj_kopie(d, zastepuj=True):
-    """Analiza kopii NazwaOryginalu_copy(N).txt wzgledem oryginalow PRZED scalaniem.
-    - kopia NOWSZA (o co najmniej 60 s; pliki wgrane hurtem maja ten sam czas) i WIEKSZA od oryginalu -> zastepuje oryginal
-      (oryginal trafia do podkatalogu _zastapione),
-    - kopia identyczna (ta sama tresc) -> bez zmian (kopia niepotrzebna, nie jest scalana),
-    - kazda inna sytuacja (mniejsza, starsza-ale-wieksza, ten sam rozmiar a inna tresc, brak oryginalu)
-      -> tylko raport DO DECYZJI uzytkownika, nic sie nie zmienia.
-    Rozmiary porownywane po normalizacji (UTF-8, LF), zeby kodowanie/konce linii nie fałszowaly wyniku.
+    """Analiza kopii NazwaOryginalu_copy(N).txt PRZED scalaniem (zasada Darka z 2026-11-09).
+    Porownywana jest TRESC kopii (po normalizacji UTF-8, koncow linii i pustych linii na brzegach) z oryginalem (w katalogu albo w org)
+    oraz ze wszystkimi istniejacymi wersjami 'Nazwa ver K.txt':
+    - ta sama tresc co oryginal lub ktoras wersja -> kopia niepotrzebna: nie jest scalana, zostaje w katalogu bez zmian,
+    - inna tresc -> kopia dostaje nazwe 'Nazwa ver 2.txt' (kolejna: ver 3, ver 4, ... gdy taka wersja juz istnieje) i JEST SCALANA
+      razem z oryginalem (nic nie jest zastepowane ani kasowane),
+    - kopia bez oryginalu (ani w katalogu, ani w org, ani zadnej wersji ver) -> raport DO DECYZJI uzytkownika, nie jest scalana.
+    zastepuj=False (tryby tylko-analiza-kopii i nie-zastepuj-kopii): tylko raport, nazwy kopii nie sa zmieniane.
     Zwraca liste (status, nazwa kopii, opis)."""
-    import re, shutil, datetime
+    import re
     rx = re.compile(r"^(.*)_copy\((\d+)\)(\.txt)$", re.I)
     pliki = {f.lower(): f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))}
     org_dir = os.path.join(d, "org")
-    org_pliki = {f.lower(): f for f in os.listdir(org_dir)} if os.path.isdir(org_dir) else {}
+    org_pliki = {f.lower(): f for f in os.listdir(org_dir) if os.path.isfile(os.path.join(org_dir, f))} if os.path.isdir(org_dir) else {}
     kopie = []
     for f in pliki.values():
         m = rx.match(f)
         if m and not jest_tlumaczeniem_pl(m.group(1)):          # kopie plikow ' pl' (tlumaczen) tez pomijamy
-            kopie.append((f, m.group(1) + m.group(3), int(m.group(2))))
+            kopie.append((f, m.group(1), int(m.group(2))))
     if not kopie:
         return []
 
@@ -130,55 +131,62 @@ def analizuj_kopie(d, zastepuj=True):
         t, _ = czytaj_plik(path)
         return t.replace("\r\n", "\n").strip("\n") + "\n"
 
-    def czas(ts):
-        return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+    planowane = {}      # tryb samego raportu: baza (male litery) -> [(nazwa, sciezka kopii)]
+
+    def wersje(baza):
+        """Wszystkie istniejace wersje pliku: 'baza.txt' (numer 1) i 'baza ver K.txt' w katalogu i w org oraz wersje planowane (tryb raportu)."""
+        rv = re.compile(r"^" + re.escape(baza) + r"(?: ver (\d+))?\.txt$", re.I)
+        wyn = []
+        for kat, slownik in ((d, pliki), (org_dir, org_pliki)):
+            for f in slownik.values():
+                m = rv.match(f)
+                if m:
+                    wyn.append((f, os.path.join(kat, f), int(m.group(1)) if m.group(1) else 1))
+        for nazwa, sc in planowane.get(baza.lower(), []):
+            wyn.append((nazwa, sc, int(re.search(r" ver (\d+)\.txt$", nazwa).group(1))))
+        return wyn
 
     wyniki = []
-    for kf, on, nr in sorted(kopie, key=lambda x: (x[1].lower(), x[2])):
+    for kf, baza, nr in sorted(kopie, key=lambda x: (x[1].lower(), x[2])):
         kp = os.path.join(d, kf)
-        if on.lower() in pliki:
-            op, gdzie = os.path.join(d, pliki[on.lower()]), "katalog"
-        elif on.lower() in org_pliki:
-            op, gdzie = os.path.join(org_dir, org_pliki[on.lower()]), "org"
-        else:
-            wyniki.append(("BRAK_ORYGINALU", kf, "nie znaleziono oryginalu '%s' (ani w katalogu, ani w org)" % on))
+        tk = tekst(kp)
+        opis = "kopia %d B, %d slow" % (len(tk.encode("utf-8")), len(tk.split()))
+        wers = wersje(baza)
+        if not wers:
+            wyniki.append(("BRAK_ORYGINALU", kf, "nie znaleziono oryginalu '%s.txt' ani wersji ver (ani w katalogu, ani w org); %s" % (baza, opis)))
             continue
-        tk, to = tekst(kp), tekst(op)
-        sk, so = len(tk.encode("utf-8")), len(to.encode("utf-8"))
-        mk, mo = os.path.getmtime(kp), os.path.getmtime(op)
-        opis = "kopia %d B (%s) | oryginal %d B (%s)%s | slow %d/%d, puste linie %d/%d (kopia/oryginal)" % (
-            sk, czas(mk), so, czas(mo), "" if gdzie == "katalog" else " [oryginal w org]",
-            len(tk.split()), len(to.split()), sum(1 for x in tk.split("\n") if not x.strip()), sum(1 for x in to.split("\n") if not x.strip()))
-        if tk == to:
-            wyniki.append(("IDENTYCZNA", kf, opis + " | ta sama tresc"))
-        elif sk > so and mk - mo >= 60:
-            if zastepuj and gdzie == "katalog":
-                kat = os.path.join(d, "_zastapione")
-                os.makedirs(kat, exist_ok=True)
-                cel = os.path.join(kat, os.path.basename(op))
-                if os.path.exists(cel):
-                    cel = os.path.join(kat, "%s_%s" % (datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), os.path.basename(op)))
-                shutil.move(op, cel)
-                shutil.move(kp, op)
-                pliki.pop(kf.lower(), None)
-                wyniki.append(("ZASTEPIONO", kf, opis + " | oryginal zachowany w _zastapione"))
-            else:
-                powod = "tryb tylko-analiza" if gdzie == "katalog" else "oryginal jest w org, nie zastepuje automatycznie"
-                wyniki.append(("DO_DECYZJI", kf, opis + " | kopia nowsza i wieksza (kandydat do zastapienia; " + powod + ")"))
-        elif sk > so and mk > mo:
-            wyniki.append(("DO_DECYZJI", kf, opis + " | kopia wieksza i nowsza tylko o %d s (pliki wgrane hurtem?) - za malo, by zastapic automatycznie" % int(mk - mo)))
-        elif sk < so:
-            wyniki.append(("DO_DECYZJI", kf, opis + " | kopia MNIEJSZA od oryginalu"))
-        elif sk > so:
-            wyniki.append(("DO_DECYZJI", kf, opis + " | kopia wieksza, ale STARSZA od oryginalu"))
+        ident = None
+        for nazwa, sc, k in sorted(wers, key=lambda w: w[2]):
+            if tekst(sc) == tk:
+                ident = nazwa
+                break
+        if ident:
+            wyniki.append(("IDENTYCZNA", kf, "%s | ta sama tresc co '%s'" % (opis, ident)))
+            continue
+        zajete = {k for _, _, k in wers}
+        n = 2
+        while n in zajete:
+            n += 1
+        nowa = "%s ver %d.txt" % (baza, n)
+        if os.path.exists(os.path.join(d, nowa)) or nowa.lower() in org_pliki:      # numer jest wolny, wiec nie powinno sie zdarzyc; nigdy nie nadpisujemy
+            wyniki.append(("DO_DECYZJI", kf, "%s | kolizja nazwy '%s' (nic nie zmieniono)" % (opis, nowa)))
+            continue
+        porownane = ", ".join(sorted(w[0] for w in wers))
+        if zastepuj:
+            os.rename(kp, os.path.join(d, nowa))
+            pliki.pop(kf.lower(), None)
+            pliki[nowa.lower()] = nowa
+            wyniki.append(("NOWA_WERSJA", kf, "%s | inna tresc niz: %s | nowa nazwa: '%s' (dolaczona do scalania)" % (opis, porownane, nowa)))
         else:
-            wyniki.append(("DO_DECYZJI", kf, opis + " | ten sam rozmiar, ale INNA tresc"))
+            planowane.setdefault(baza.lower(), []).append((nowa, kp))
+            wyniki.append(("DO_ZMIANY", kf, "%s | inna tresc niz: %s | w trybie analizy nazwa NIE zostala zmieniona (bylaby '%s')" % (opis, porownane, nowa)))
 
     print("=== ANALIZA KOPII _copy: %d plikow ===" % len(wyniki))
-    for status, tytul in (("ZASTEPIONO", "zastapiono oryginal nowsza i wieksza kopia"),
-                          ("IDENTYCZNA", "kopia identyczna z oryginalem (niepotrzebna, nie jest scalana)"),
+    for status, tytul in (("NOWA_WERSJA", "inna tresc niz oryginal: zmieniono nazwe na 'ver N' i dolaczono do scalania"),
+                          ("DO_ZMIANY", "tryb analizy (bez zmian nazw): kopie, ktore dostalyby nazwe 'ver N' i zostalyby scalone"),
+                          ("IDENTYCZNA", "kopia o tej samej tresci co oryginal lub inna wersja (niepotrzebna, nie jest scalana, zostaje w katalogu)"),
                           ("DO_DECYZJI", "DO DECYZJI UZYTKOWNIKA (nic nie zmieniono)"),
-                          ("BRAK_ORYGINALU", "DO DECYZJI: kopia bez oryginalu")):
+                          ("BRAK_ORYGINALU", "DO DECYZJI: kopia bez oryginalu (nie jest scalana)")):
         grupa = [w for w in wyniki if w[0] == status]
         if grupa:
             print("%s: %d" % (tytul, len(grupa)))
@@ -397,7 +405,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("katalog")
     ap.add_argument("--limit", type=int, default=900000, help="maks. rozmiar pliku scalenia w bajtach")
-    ap.add_argument("--nie-zastepuj-kopii", action="store_true", help="analizuj kopie _copy, ale niczego nie zastepuj")
+    ap.add_argument("--nie-zastepuj-kopii", action="store_true", help="analizuj kopie _copy, ale nie zmieniaj ich nazw na ver N (tylko raport; nazwa flagi zostaje dla zgodnosci)")
     ap.add_argument("--tylko-analiza-kopii", action="store_true", help="tylko raport o kopiach _copy (bez zmian i bez scalania)")
     ap.add_argument("--bez-skracania", action="store_true",
                     help="NIE skracaj przeciagniec w tekscie wysylanym do DeepL (domyslnie ciagi 5+ tego samego znaku - litery, ! ? . - sa "
@@ -429,7 +437,7 @@ def main():
     base = os.path.basename(d) + "_all"
     spis_name = os.path.basename(d) + "_spis_scalenia.txt"
 
-    # Analiza kopii _copy PRZED scalaniem (nowsza i wieksza kopia zastepuje oryginal; reszta do decyzji uzytkownika)
+    # Analiza kopii _copy PRZED scalaniem (inna tresc niz oryginal: nazwa 'ver 2' i scalanie; ta sama tresc: pomijana; bez oryginalu: do decyzji uzytkownika)
     analizuj_kopie(d, zastepuj=not (a.nie_zastepuj_kopii or a.tylko_analiza_kopii))
     if a.tylko_analiza_kopii:
         return 0

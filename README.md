@@ -26,13 +26,13 @@ Oryginalna Nazwa pl.txt
 Scala pliki `.txt` z katalogu w jak najmniej plików zbiorczych o rozmiarze do 900 000 bajtów.
 
 - **gdy katalog ma podkatalog `org`, scala WSZYSTKIE oryginały z `org` (poza technicznymi) oraz nowe pliki z katalogu głównego** (nowsza wersja o tej samej nazwie wygrywa), co pozwala ponownie przetłumaczyć katalog nowszym modelem DeepL (nowe tłumaczenia zastępują stare w `rozdziel` po sukcesie wszystkich etapów); **`--bez-org`** ignoruje `org` i scala tylko pliki z katalogu głównego (gdy chcesz przetłumaczyć wyłącznie nowe pliki, a oryginały z `org` zostawić w spokoju),
-- **nigdy nie scala wersji przetłumaczonych** (twarda zasada: nazwa kończąca się na `pl`, np. `... pl.txt`, `..._pl.txt`, `... PL.txt`, `... pl (1).txt`; podwójna spacja też; ich kopie też są pomijane); kopie (`..._copy(1).txt`) nie są scalane, ale przed scaleniem są analizowane: nowsza i większa kopia zastępuje oryginał (oryginał trafia do `_zastapione`), pozostałe przypadki trafiają do raportu "do decyzji" (flagi `--tylko-analiza-kopii`, `--nie-zastepuj-kopii`),
+- **nigdy nie scala wersji przetłumaczonych** (twarda zasada: nazwa kończąca się na `pl`, np. `... pl.txt`, `..._pl.txt`, `... PL.txt`, `... pl (1).txt`; podwójna spacja też; ich kopie też są pomijane); kopie (`..._copy(1).txt`) przed scaleniem są porównywane z oryginałem (i jego wersjami) **po treści**: ta sama treść = kopia pomijana (zostaje w katalogu), inna treść = kopia dostaje nazwę `Nazwa ver 2.txt` (kolejne `ver 3`, …) i jest scalana jako osobny plik, a kopia bez oryginału trafia do raportu "do decyzji" (flagi `--tylko-analiza-kopii`, `--nie-zastepuj-kopii`; zasada Darka z 2026-11-09),
 - pakuje pliki wg rozmiaru (First Fit Decreasing), w każdym pliku scalenia pliki idą alfabetycznie,
 - przed każdym plikiem wstawia znacznik `=====[[N|Nazwa]]=====`,
 - tworzy `NazwaKatalogu_spis_scalenia.txt` (numer i nazwa każdego pliku w danym scaleniu oraz plan podziału długich linii),
 - pliki większe niż limit nie trafiają do scaleń, tylko są dzielone linia po linii na części `Nazwa_1.txt`, `Nazwa_2.txt`, ...,
 - domyślnie tnie linie na zmianach mówcy i na twardym limicie 800 znaków oraz skraca przeciągnięte litery (opis w sekcji "Cięcie linii"),
-- niczego nie kasuje: oryginały i przetłumaczone pliki zostają nietknięte (jedyny wyjątek: nowsza i większa kopia `_copy` zastępuje oryginał, a oryginał trafia do `_zastapione`).
+- niczego nie kasuje i niczego nie zastępuje: oryginały i przetłumaczone pliki zostają nietknięte (jedyna zmiana nazwy dotyczy kopii `_copy` o innej treści, które dostają sufiks `ver N` i są scalane).
 
 ```
 python litert/scripts/scal.py "C:\sciezka\KATALOG" [--limit 900000] [--bez-org] [--nie-zastepuj-kopii] [--tylko-analiza-kopii]

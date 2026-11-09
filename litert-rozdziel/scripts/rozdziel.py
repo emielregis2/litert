@@ -1274,6 +1274,9 @@ def wykonaj_sprzatanie(d, spis_nazwa, oryginaly, wyniki, tech, raport_nazwa, zac
             print("SPRZATANIE: pliki pomocnicze DO_PRZETLUMACZENIA_* przeniesione do Kosza: %d (%s)" % (len(pomocnicze), ", ".join(pomocnicze)))
     gl = [f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))]
     print("STAN KONCOWY: katalog glowny: %d plikow (w tym %d tlumaczen), org: %d plikow" % (len(gl), sum(1 for f in gl if f.lower() in {w.lower() for w in wyniki}), len(os.listdir(org))))
+    kopie_zostaly = [f for f in gl if re.search(r"_copy\(\d+\)\.txt$", f, re.I)]
+    if kopie_zostaly:
+        print("INFO: w katalogu zostalo %d kopii _copy(N) (nie tlumaczone): uruchom scal - porowna ich tresc z oryginalami (inna tresc: nazwa ver 2 i scalanie, ta sama tresc: pomijana)" % len(kopie_zostaly))
 
 
 def main():

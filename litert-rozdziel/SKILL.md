@@ -188,3 +188,7 @@ Wyrażenie rozpoznające tolerancyjnie traktuje różne znaki `=`, spacje i kres
 ## Uwagi
 
 - Język komunikacji: polski.
+
+## Kopie `_copy(N)` po rozdzieleniu
+
+Kopie `_copy(N)` nie są tłumaczone ani przenoszone przez `rozdziel`; po przebiegu `rozdziel` wypisuje `INFO: w katalogu zostalo N kopii _copy(N)`, a Ty proponujesz `scal` na tym katalogu. Zasada Darka z 2026-11-09 (realizuje ją skill `litert`): kopia o **tej samej treści** co oryginał (lub jego wersja) jest pomijana, a kopia o **innej treści** dostaje nazwę `Nazwa ver 2.txt` (kolejne `ver 3`, …) i jest scalana jako osobny plik. Wynik `Nazwa ver 2 pl.txt` powstaje wtedy z `rozdziel` jak każdy inny.
