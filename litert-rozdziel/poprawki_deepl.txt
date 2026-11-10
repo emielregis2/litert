@@ -300,3 +300,11 @@ sparaliłeś => spuściłeś
 # natrzel -> natarl, natrzela -> natarla (natrzec = 'natrzec', np. 'natarl nim cale cialo'): DeepL daje nieistniejace formy 'natrzel'/'natrzela' zamiast 'natarl'/'natarla' (korpus: po 13 trafien). Poprawne 'natrzec', 'natrzyj', 'natarl', 'natarla', 'natarczywy', 'natretny', 'natarcie' zostaja (silnik dopasowuje cale slowa). 'natrzymalem' (x17, 'natrzymalem ja olejkiem' = 'natarlem') NIE dopisane: do decyzji Darka
 natrzeł => natarł
 natrzeła => natarła
+
+# Dopisane 2026-11-10 (wieczor)
+# natrzymalem -> natarlem ('natrzymalem ja olejkiem' = 'natarlem'): ta sama usterka DeepL co 'natrzel'/'natrzela' w pierwszej osobie meskiej; nieistniejaca forma (korpus: 17 trafien). Zgoda Darka
+natrzymałem => natarłem
+# okrzyknal / okrzyknely -> krzyknal / krzyknely w OPISIE DIALOGU (po myslniku lub zamykajacym cudzyslowie), jak 'okrzyknela' (zgoda Darka). 'okrzyknac' w znaczeniu 'oglosic kims' ('okrzyknal go krolem') zostaje
+– okrzyknął => – krzyknął
+– okrzyknęły => – krzyknęły
+”, okrzyknął => ”, krzyknął

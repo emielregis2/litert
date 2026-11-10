@@ -3,8 +3,8 @@
 
 Podwojone slowo ('sie sie', 'jej jej', 'tuz tuz') bywa czkawka DeepL, ale bywa tez poprawne: powtorzenie jest w oryginale ('yeah, yeah', 'ding ding'),
 polski idiom ('tuz tuz'), zaimek plus przeczenie ('na nie nie spojrzalem'), nazwa wlasna ('Duran Duran'). Dlatego kazde podwojenie jest klasyfikowane po
-oryginale: tylko gdy oryginal NIE ma powtorzenia, a slowo nalezy do krotkiej listy SAFE (sie, tak, ze, do, jak), jest bezpieczna autopoprawka (i, w, na, z: 'i i tak', 'w w pelni', 'na na wpol' sa poprawne);
-reszta podejrzanych trafia do przegladu. Druga kontrola: linie oryginalu pisane WIELKIMI LITERAMI, w ktorych tlumaczenie jest nieproporcjonalnie dlugie/krotkie
+oryginale: gdy oryginal NIE ma powtorzenia, a podwojenie jest ZWYKLE (dokladnie dwa identyczne male slowa: 'nasienie nasienie', 'uwage uwage', 'na na'; od 2026-11-10, wczesniej tylko lista SAFE: sie, tak, ze, do, jak)
+jest autopoprawka ('i i tak', 'w w pelni', 'na na wpol' sa poprawne i zostaja); do przegladu zostaja zaimki, 'nie', 'juz', 'to', 'jeszcze', 'bardzo', 'tuz', wykrzyknienia i onomatopeje, nazwy, WIELKIE LITERY i pary o roznej wielkosci liter. Druga kontrola: linie oryginalu pisane WIELKIMI LITERAMI, w ktorych tlumaczenie jest nieproporcjonalnie dlugie/krotkie
 albo ma powtorzenia (np. 'KISS' -> 'POCZUWALNY' x13, 'HANDSOME' -> 'PRZYKLADOWY PRZYKLADOWY').
 Linie tlumaczenia sa wyrownywane do linii oryginalu: gdy liczba niepustych linii jest rowna - 1:1, inaczej (po ciecia tur) wyrownanie po dlugosciach (Gale-Church).
 
@@ -19,6 +19,10 @@ PRZYIMKI = {"na", "o", "w", "do", "dla", "za", "przed", "nad", "pod", "przez", "
 LEGIT_NASTEPNE = {("i", "tak"), ("i", "to"), ("w", "pełni"), ("na", "wpół")}      # poprawne konstrukcje: 'i i tak', 'w w pelni', 'na na wpol'
 KONTEKST_RAZEM = {"tym", "innym", "jednym", "następnym", "każdym", "pierwszym", "kolejnym", "tamtym", "razem"}   # 'tym razem razem'
 KROTKIE = {"i", "w", "na", "z", "a", "o", "u"}          # krotkie slowa funkcyjne: tez do przegladu (z pominieciem poprawnych konstrukcji), ale nigdy autopoprawka
+# Zwykle podwojenie slowa = autopoprawka (zmiana Darka z 2026-11-10; wczesniej tylko lista SAFE). Do przegladu zostaja: wyjatki ponizej, nazwy, WIELKIE LITERY, pary o roznej wielkosci liter.
+AUTO_KROTKIE = {"w", "na", "z", "o", "u"}            # krotkie slowa funkcyjne tez sa autopoprawka (bez "i" i "a": ich podwojenia bywaja poprawne); poprawne konstrukcje chroni LEGIT_NASTEPNE
+WYJATKI_AUTO = {"nie", "tuż", "już", "ani", "to", "no", "jeszcze", "bardzo", "coraz", "ledwo", "ledwie", "wciąż", "ha", "hi", "ho", "he", "hee", "heh", "hehe", "uh", "uhh", "oh", "ooh", "ah", "aah", "mm", "mmm", "hm", "hmm", "mhm",
+                "bla", "boom", "glug", "pa", "hau", "oj", "ej", "hej", "cii", "sza", "tik", "tok", "puk", "kap", "brr", "tra", "mniam"}      # idiomy, przeczenia, wykrzyknienia i onomatopeje: zostaja do przegladu
 RUN = re.compile(r"(?<![^\W\d_])([^\W\d_]+)((?:\s+\1)+)(?![^\W\d_])", re.I)
 K_ZRODLO, K_NAZWA, K_IDIOM, K_ZAIMEK = "uzasadnione: powtorzenie w oryginale", "nazwa podwojona BEZ powtorzenia w oryginale (sprawdz)", "idiom (tuz tuz)", "zaimek (mozliwa poprawna gramatyka)"
 K_AUTO, K_PRZEGLAD, K_CAPS, K_PETLA = "CZKAWKA (autopoprawka)", "CZKAWKA? (do przegladu)", "WIELKIE LITERY: podejrzane tlumaczenie", "PETLA slowa (3+ powtorzen)"
@@ -102,6 +106,14 @@ def wstepna(m, l):
         return K_ZAIMEK
     if low in SAFE:
         return K_AUTO
+    if low in WYJATKI_AUTO or (tok.isupper() and len(tok) > 1):
+        return K_PRZEGLAD                                         # idiom/przeczenie/wykrzyknienie/onomatopeja albo SERIA WIELKICH LITER: tylko do przegladu
+    if any(t[0].isupper() for t in toks[1:]) and not tok[0].isupper():
+        return K_NAZWA                                            # 'kim Kim': slowo + nazwa wlasna
+    if not (tok.islower() and all(t == tok for t in toks)):
+        return K_PRZEGLAD                                         # pary o roznej wielkosci liter ('Sam sam', 'Glosno glosno'): do przegladu
+    if len(low) >= 3 or low in AUTO_KROTKIE:
+        return K_AUTO                                             # zwykle podwojenie dwoch identycznych malych slow
     return K_PRZEGLAD
 
 
