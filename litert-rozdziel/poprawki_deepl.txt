@@ -295,3 +295,8 @@ okrzyknęła ochrypłym głosem => krzyknęła ochrypłym głosem
 sparaj => spuść
 sparajcie => spuśćcie
 sparaliłeś => spuściłeś
+
+# Dopisane 2026-11-10
+# natrzel -> natarl, natrzela -> natarla (natrzec = 'natrzec', np. 'natarl nim cale cialo'): DeepL daje nieistniejace formy 'natrzel'/'natrzela' zamiast 'natarl'/'natarla' (korpus: po 13 trafien). Poprawne 'natrzec', 'natrzyj', 'natarl', 'natarla', 'natarczywy', 'natretny', 'natarcie' zostaja (silnik dopasowuje cale slowa). 'natrzymalem' (x17, 'natrzymalem ja olejkiem' = 'natarlem') NIE dopisane: do decyzji Darka
+natrzeł => natarł
+natrzeła => natarła
