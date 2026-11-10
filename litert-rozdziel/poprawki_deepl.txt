@@ -285,3 +285,13 @@ fiut, który gęstnieje => fiut, który nabrzmiewa
 fiut gęstnieje => fiut nabrzmiewa
 trzon, który gęstnieje => trzon, który nabrzmiewa
 trzon gęstnieje => trzon nabrzmiewa
+
+# Dopisane 2026-11-10
+# okrzyknela -> krzyknela w OPISIE DIALOGU ('Tak!' – okrzyknela Mia): DeepL daje 'okrzyknela' zamiast 'krzyknela' (korpus: 11 trafien, w tym 9 po myslniku). 'okrzyknac' jest poprawne w znaczeniu 'oglosic kogos kims' ('okrzyknela go krolem', 'okrzykniety szalencem'), wiec reguly dotycza tylko 'okrzyknela' po myslniku/zamykajacym cudzyslowie oraz 'okrzyknela ochrypłym glosem'. 'Okrzyknela sie' (zostaje: po zamianie wyszloby 'krzyknela sie'), formy 'okrzyknal', 'okrzyknely', 'okrzyknalem' i bierne ('okrzykniety') bez zmian (do decyzji Darka)
+– okrzyknęła => – krzyknęła
+”, okrzyknęła => ”, krzyknęła
+okrzyknęła ochrypłym głosem => krzyknęła ochrypłym głosem
+# sparaj -> spusc: DeepL daje 'sparaj' (tryb rozkazujacy, 'Sparaj sie na mnie') zamiast 'spusc'; 'sparaj' nie istnieje w polszczyznie (korpus: 11 trafien, wszystkie w znaczeniu 'spusc sie'). Poprawne 'sparalizowany', 'sparafrazowal' itd. zostaja (silnik dopasowuje cale slowa)
+sparaj => spuść
+sparajcie => spuśćcie
+sparaliłeś => spuściłeś
