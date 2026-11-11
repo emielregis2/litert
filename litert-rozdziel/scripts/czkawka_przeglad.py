@@ -12,6 +12,8 @@ Uzycie:
   python czkawka_przeglad.py KATALOG [KATALOG ...] [--korzen KATALOG_GLOWNY] [--csv plik.csv] [--md plik.md] [--napraw [--kopia plik.zip]]
 Oryginaly sa brane z podkatalogu org (albo z katalogu). Bez --napraw skrypt tylko czyta."""
 import os, re, sys, csv, argparse, collections
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import rownolegle                                   # wspolny modul rownoleglosci (Windows, macOS, Linux)
 
 SAFE = ("się", "tak", "że", "do", "jak")          # tylko slowa, ktorych podwojenie praktycznie nigdy nie jest poprawne (i, w, na, z: 'i i tak', 'w w pelni', 'na na wpol' sa poprawne)
 ZAIMKI = {"jej", "jego", "ich", "mi", "ci", "mu", "im", "go", "ją", "je", "nas", "was", "mnie", "cię", "tobie", "sobie", "tu", "tam"}
@@ -195,12 +197,42 @@ def napraw_tekst(tekst, zrodlo, napraw=True):
     return "\n".join(tl), wyn, n
 
 
+def _przetworz_plik(arg):
+    """Praca na JEDNYM pliku (uruchamiana w procesach roboczych; zwykla funkcja na poziomie modulu: wymog 'spawn' na Windows i macOS). Niczego nie zapisuje ani nie wypisuje.
+    arg = (katalog, plik, katalog_z_oryginalami, tryb_wszystkie, napraw). Zwraca slownik z wynikami; wynik nie zalezy od liczby procesow."""
+    d, f, zr, wszystkie, napraw = arg
+    sp = os.path.join(zr, f[:-7] + ".txt")
+    raw = open(os.path.join(d, f), "rb").read()
+    try:
+        tl = raw.decode("utf-8").split("\n")
+    except UnicodeDecodeError:
+        return {"f": f, "status": "nie_utf8"}
+    w = {"f": f, "status": "ok", "ok": True, "ns": 0, "nt": 0, "nowy": None, "nn": 0}
+    if not os.path.exists(sp):
+        w["status"] = "brak_oryginalu"
+        if not wszystkie:
+            return w
+        wyn = przegladaj_pl(tl)
+    else:
+        wyn, ok = przegladaj(tl, dec(open(sp, "rb").read()).replace("\r\n", "\n").split("\n"))
+        w["ok"] = ok
+        if not ok:
+            w["ns"] = sum(1 for x in dec(open(sp, "rb").read()).split("\n") if x.strip()); w["nt"] = sum(1 for x in tl if x.strip())
+            w["wyn"] = wyn
+            return w
+    w["wyn"] = wyn
+    if napraw and any(x["klasa"] == K_AUTO for x in wyn):
+        w["nn"] = napraw_linie(tl, wyn); w["nowy"] = "\n".join(tl).encode("utf-8")
+    return w
+
+
 def main():
     ap = argparse.ArgumentParser(description="Przeglad czkawki DeepL: podwojone slowa i bledy na wielkich literach")
     ap.add_argument("katalogi", nargs="*"); ap.add_argument("--korzen", default="", help="katalog glowny: przegladaj wszystkie podkatalogi, ktore maja org")
     ap.add_argument("--csv", default=""); ap.add_argument("--md", default="")
     ap.add_argument("--wszystkie", action="store_true", help="z --korzen: przegladaj tez katalogi BEZ org (tryb bez oryginalu, tylko klasyfikacja po slowie)")
     ap.add_argument("--napraw", action="store_true", help="zastosuj bezpieczne autopoprawki (K_AUTO) w plikach tlumaczen"); ap.add_argument("--kopia", default="", help="zip z wersjami zmienianych plikow (z --napraw)")
+    ap.add_argument("--procesy", type=int, default=0, help="liczba procesow roboczych (0 = automatycznie: polowa watkow, 2-6; 1 = bez rownoleglosci; zmienna LITERT_PROCESY)")
     a = ap.parse_args()
     try:
         sys.stdout.reconfigure(errors="replace")
@@ -212,37 +244,38 @@ def main():
     import zipfile
     zf = zipfile.ZipFile(a.kopia, "w", zipfile.ZIP_DEFLATED) if (a.napraw and a.kopia) else None
     wiersze = []; kl = collections.Counter(); slowa = collections.Counter(); pliki_zle = set(); ukl = []; nplik = nkat = nbrak = nnap = 0
+    zadania = []; grupy = []                                              # grupy: (katalog, liczba jego plikow w zadaniach), w kolejnosci
     for d in kat:
-        org = os.path.join(d, "org"); zr = org if os.path.isdir(org) else d; nkat += 1
+        org = os.path.join(d, "org"); zr = org if os.path.isdir(org) else d; nkat += 1; ile = 0
         for f in sorted(os.listdir(d)):
             if not f.endswith(" pl.txt") or re.search(r"_all(_\d+)? pl\.txt$", f) or f.startswith("DO_PRZETLUMACZENIA"):
                 continue
-            sp = os.path.join(zr, f[:-7] + ".txt")
-            raw = open(os.path.join(d, f), "rb").read()
-            try:
-                tl = raw.decode("utf-8").split("\n")
-            except UnicodeDecodeError:
+            zadania.append((d, f, zr, a.wszystkie, a.napraw)); ile += 1
+        grupy.append((d, ile))
+    wyniki = rownolegle.uruchom(_przetworz_plik, zadania, a.procesy, rozmiar=sum(os.path.getsize(os.path.join(z[0], z[1])) for z in zadania))      # strumien wynikow w KOLEJNOSCI plikow (praca w procesach roboczych)
+    for d, ile in grupy:
+        for _ in range(ile):
+            w = next(wyniki); f = w["f"]
+            if w["status"] == "nie_utf8":
                 continue
-            if not os.path.exists(sp):
+            if w["status"] == "brak_oryginalu":
                 nbrak += 1
                 if not a.wszystkie:
                     continue
-                wyn = przegladaj_pl(tl)
             else:
                 nplik += 1
-                wyn, ok = przegladaj(tl, dec(open(sp, "rb").read()).replace("\r\n", "\n").split("\n"))
-                if not ok:
-                    ns = sum(1 for x in dec(open(sp, "rb").read()).split("\n") if x.strip()); nt = sum(1 for x in tl if x.strip())
-                    ukl.append((os.path.basename(d), f[:-7], ns, nt)); print("UKLAD LINII: %s\\%s: niepustych linii oryginal %d, tlumaczenie %d (brakuje %d)" % (os.path.basename(d), f, ns, nt, ns - nt)); continue
-            for w in wyn:
-                kl[w["klasa"]] += 1
-                if w["klasa"] in ZLE:
-                    pliki_zle.add((d, f)); slowa[(w["klasa"], w["tok"].lower() if w["tok"] else "(wielkie litery)")] += 1
-                wiersze.append([os.path.basename(d), f[:-7], w["linia"], w["klasa"], w["slowo"], w["pl"].replace("\n", " "), w["en"]])
-            if a.napraw and any(x["klasa"] == K_AUTO for x in wyn):
+                if not w["ok"]:
+                    ukl.append((os.path.basename(d), f[:-7], w["ns"], w["nt"])); print("UKLAD LINII: %s\\%s: niepustych linii oryginal %d, tlumaczenie %d (brakuje %d)" % (os.path.basename(d), f, w["ns"], w["nt"], w["ns"] - w["nt"])); continue
+            wyn = w["wyn"]
+            for ww in wyn:
+                kl[ww["klasa"]] += 1
+                if ww["klasa"] in ZLE:
+                    pliki_zle.add((d, f)); slowa[(ww["klasa"], ww["tok"].lower() if ww["tok"] else "(wielkie litery)")] += 1
+                wiersze.append([os.path.basename(d), f[:-7], ww["linia"], ww["klasa"], ww["slowo"], ww["pl"].replace("\n", " "), ww["en"]])
+            if w["nowy"] is not None:                                       # zapis i kopia zapasowa tylko w procesie glownym
                 if zf:
-                    zf.writestr(os.path.join(os.path.basename(d), f), raw)
-                nnap += napraw_linie(tl, wyn); open(os.path.join(d, f), "wb").write("\n".join(tl).encode("utf-8"))
+                    zf.writestr(os.path.join(os.path.basename(d), f), open(os.path.join(d, f), "rb").read())
+                nnap += w["nn"]; open(os.path.join(d, f), "wb").write(w["nowy"])
         print("  %-36s plikow: %d, podejrzanych miejsc w katalogu: %d" % (os.path.basename(d)[:36], sum(1 for x in os.listdir(d) if x.endswith(" pl.txt")), sum(1 for r in wiersze if r[0] == os.path.basename(d) and r[3] in ZLE)))
         sys.stdout.flush()
     if zf:

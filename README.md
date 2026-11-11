@@ -148,3 +148,12 @@ Oba skrypty czytają pliki z automatycznym wykrywaniem kodowania (UTF-16 z BOM, 
 ## Użycie jako skill Claude
 
 Każdy folder (`litert/`, `litert-rozdziel/`) zawiera `SKILL.md` i skrypty w `scripts/`. Skille wywołuje się, podając Claude ścieżkę katalogu, np. "scal C:\...\NAZWA" albo "rozdziel C:\...\NAZWA". Po zmianie kodu trzeba przebudować paczki `.skill` i zapisać je w Claude (Save skill); nowa wersja pojawia się w następnej sesji.
+
+## Wydajność, równoległość i testy (od 2026-11-11)
+
+Wszystko działa tak samo na Windowsie i macOS (`python3` na Macu).
+
+- **Słownik poprawek jest 37–40× szybszy** (prefiltr reguł, wynik identyczny), więc `rozdziel` jest ok. 6× szybszy.
+- **Równoległość** (`litert-rozdziel/scripts/rownolegle.py`): `--procesy N` w `czkawka_przeglad.py` i `poprawki_wstecz.py` (1 = bez równoległości; domyślnie polowa watkow procesora, 1–6; zmienna `LITERT_PROCESY`); awaryjnie sekwencyjnie. Samotest: `python rownolegle.py --samotest`.
+- **Poprawki słownika wstecz**: `python litert-rozdziel/scripts/poprawki_wstecz.py --sucho`, potem bez `--sucho` (kopia zip, weryfikacja, bezpiecznik; domyślnie katalogi `_4`).
+- **Testy**: `python tests/test_rownoleglosc.py` (dane syntetyczne, bez korpusu) i `python tests/test_slownik_rownowaznosc.py`.
