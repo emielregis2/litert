@@ -15,11 +15,43 @@ NazwaKatalogu_all_N pl.txt
 Oryginalna Nazwa pl.txt
 ```
 
+## Spis treści
+
+- [Typowy przebieg](#typowy-przebieg)
+- [Wymagania i platformy](#wymagania-i-platformy)
+- [litert](#litert-1)
+- [litert-rozdziel](#litert-rozdziel)
+- [Skrypty (przegląd)](#skrypty-przegląd)
+- [Wydajność i równoległość: zasady](#wydajność-i-równoległość-zasady)
+- [Cięcie linii (przed i po tłumaczeniu)](#cięcie-linii-przed-i-po-tłumaczeniu)
+- [Czkawka DeepL: podwojone słowa i błędy na wielkich literach](#czkawka-deepl-podwojone-słowa-i-błędy-na-wielkich-literach)
+- [Raport tłumaczeń katalogu](#raport-tłumaczeń-katalogu)
+- [Ponowne tłumaczenie katalogu (etapowanie)](#ponowne-tłumaczenie-katalogu-etapowanie)
+- [Zmiana nazwy katalogu po scaleniu](#zmiana-nazwy-katalogu-po-scaleniu)
+- [Twardo zawinięte linie → akapity](#twardo-zawinięte-linie--akapity)
+- [Pominięte akapity](#pominięte-akapity)
+- [Końcówki zdań, rozdzielone linie i puste linie](#końcówki-zdań-rozdzielone-linie-i-puste-linie)
+- [Uszkodzone kodowanie cudzysłowów](#uszkodzone-kodowanie-cudzysłowów)
+- [Słownik poprawek DeepL](#słownik-poprawek-deepl)
+- [Duplikaty](#duplikaty)
+- [Gdy DeepL wpadnie w pętlę](#gdy-deepl-wpadnie-w-pętlę)
+- [Kodowanie i polskie znaki](#kodowanie-i-polskie-znaki)
+- [Użycie jako skill Claude](#użycie-jako-skill-claude)
+
 ## Typowy przebieg
 
 1. **Scalanie:** `scal C:\...\KATALOG`. Powstają `KATALOG_all_N.txt`, `KATALOG_spis_scalenia.txt` oraz ewentualnie części dużych plików (`Nazwa_N.txt`). Przed wysłaniem do DeepL długie linie są cięte (na zmianach mówcy i do 800 znaków), a przeciągnięte litery skracane.
 2. **Tłumaczenie ręcznie w DeepL:** wgrywasz pliki `KATALOG_all_N.txt` i części dużych plików (nie spis i nie duże oryginały), a wyniki zapisujesz w tym samym katalogu z końcówką ` pl` (albo zostawiasz zip z DeepL).
 3. **Rozdzielanie:** `rozdziel C:\...\KATALOG`. Powstają pliki `Oryginalna Nazwa pl.txt`: skrypt składa pocięte linie, stosuje słownik poprawek, sprawdza czkawkę DeepL, kontroluje kompletność, przenosi oryginały do podkatalogu `org`, kasuje pliki techniczne (scalenia, spis, części, archiwum `.zip`) i na końcu tnie linie na zmianach mówcy. W katalogu głównym zostają same tłumaczenia (raport `Raport tłumaczeń katalogu <NAZWA>.md` trafia do `org`). Przy **ponownym tłumaczeniu** katalogu (są już stare wyniki) nowe przechodzą wszystkie etapy w `_nowe_tlumaczenia` i zastępują stare dopiero po sukcesie (sekcja „Ponowne tłumaczenie katalogu”).
+4. **Poprawki wstecz (opcjonalnie):** po dopisaniu nowych reguł do słownika `python litert-rozdziel/scripts/poprawki_wstecz.py --sucho` pokazuje, co by się zmieniło w gotowych tłumaczeniach, a bez `--sucho` stosuje to (kopia zip, weryfikacja, równolegle). Zasady: [Wydajność i równoległość](#wydajność-i-równoległość-zasady).
+
+## Wymagania i platformy
+
+- **Python 3**, tylko biblioteka standardowa (nic nie trzeba instalować przez `pip`). Przetestowane wersje: **3.14 (Windows)** i **3.12 (Linux, samotest)**; starszych wersji nie sprawdzano.
+- **Systemy:** Windows 10/11 oraz macOS (na Macu polecenie `python3`). Skrypty są napisane bez zależności od Windowsa: ścieżki przez `os.path`, kodowanie UTF-8 bez BOM, końce linii LF.
+- **Katalog z tłumaczeniami** (`Dropbox/Wymina`) jest wykrywany automatycznie w narzędziach, które go potrzebują (`poprawki_wstecz.py`: `--korzen`, zmienna `LITERT_KORZEN` albo `~/Dropbox/Wymina` i `~/Library/CloudStorage/Dropbox/Wymina` na Macu).
+- **Równoległość** działa tak samo na wszystkich systemach; zasady, ustawienia i pomiary: [Wydajność i równoległość](#wydajność-i-równoległość-zasady) oraz [docs/ROWNOLEGLOSC.md](docs/ROWNOLEGLOSC.md).
+- **Aktualizacja na innym komputerze:** `git pull --ff-only origin main`, potem `python rownolegle.py --samotest` (w `litert-rozdziel/scripts`). Na Macu z uszkodzonym systemowym `git` użyj `/Library/Developer/CommandLineTools/usr/bin/git` albo `GitHub Desktop`.
 
 ## litert
 
@@ -65,6 +97,45 @@ python litert-rozdziel/scripts/rozdziel.py "C:\sciezka\KATALOG" [--nie-nadpisuj]
                                           [--bez-akapitow] [--akapity-wymus] [--tylko-akapity [--sucho] [--kopia plik.zip]]
                                           [--bez-raportu] [--tylko-raport] [--tylko-podmien]
 ```
+
+## Skrypty (przegląd)
+
+| Skrypt | Do czego | Równolegle |
+|---|---|---|
+| `litert/scripts/scal.py` | scalanie plików `.txt` w pliki do DeepL, spis, cięcie długich linii, kopie `ver N` | nie |
+| `litert/scripts/duplikaty.py` | wskazuje pliki z wzorcem w nazwie, których treść jest w innym pliku | nie |
+| `litert/scripts/napraw_kodowanie.py` | naprawa uszkodzonych cudzysłowów i apostrofów w plikach źródłowych | nie |
+| `litert-rozdziel/scripts/rozdziel.py` | rozdzielanie po tłumaczeniu: słownik, czkawka, składanie linii, kontrola, sprzątanie, raport, cięcie tur | nie (przyspieszony algorytmicznie, ok. 11×) |
+| `litert-rozdziel/scripts/czkawka_przeglad.py` | czkawka DeepL w istniejących tłumaczeniach: przegląd i `--napraw` | **tak**, `--procesy N` |
+| `litert-rozdziel/scripts/poprawki_wstecz.py` | słownik poprawek wstecz w gotowych tłumaczeniach (kopia zip, weryfikacja, bezpiecznik) | **tak**, `--procesy N` |
+| `litert-rozdziel/scripts/rownolegle.py` | wspólny moduł równoległości i `--samotest` | moduł wspólny |
+| `litert-rozdziel/scripts/dlugie_linie.py` | ponowne tłumaczenie bardzo długich linii i pętli w istniejących tłumaczeniach | nie |
+| `litert-rozdziel/scripts/akapity.py` | składanie twardo zawiniętych linii w akapity | nie (wywoływany z `rozdziel.py`) |
+| `litert-rozdziel/scripts/raport_katalogu.py` | raport tłumaczeń katalogu w `org` | nie (wywoływany z `rozdziel.py`) |
+| `litert-rozdziel/scripts/kandydaci_slownika.py` | odkrywanie błędów DeepL: słowa spoza słownika `pl_PL` jako kandydaci do słownika poprawek | nie |
+| `tests/test_rownoleglosc.py` | test równoległości na danych syntetycznych (bez korpusu) | testuje 1 vs 4 procesy |
+| `tests/test_slownik_rownowaznosc.py` | test równoważności starej i nowej implementacji słownika | nie |
+
+## Wydajność i równoległość: zasady
+
+Pełny opis (zasady, pomiary, wzorzec kodu, rozwiązywanie problemów): **[docs/ROWNOLEGLOSC.md](docs/ROWNOLEGLOSC.md)**. Skrót:
+
+1. **Największy zysk dał algorytm słownika**, nie równoległość: `zastosuj_poprawki` pomija reguły, których tekstu nie ma w pliku (wynik identyczny). `rozdziel` na 6,9 MB: **131,9 s → 11,7 s (11×)**.
+2. **Równoległość jest tylko tam, gdzie zostają ciężkie obliczenia na plik:** `czkawka_przeglad.py` i `poprawki_wstecz.py` (opcja `--procesy N`). `scal.py` i `rozdziel.py` są jednowątkowe.
+3. **Liczba procesów:** `--procesy N` > zmienna `LITERT_PROCESY` > automatycznie **połowa wątków procesora, od 1 do 6** (`XPS13`: 4, `ALIENWARE`: 6). `--procesy 1` wyłącza równoległość.
+4. **Małe zadania** (poniżej ok. 400 KB, zmienna `LITERT_PROG`) w trybie automatycznym idą sekwencyjnie, bo start procesów kosztuje więcej, niż daje; jawne `--procesy N` zawsze jest respektowane.
+5. **Wynik nie zależy od liczby procesów:** wyniki wracają w kolejności plików, a zapisy, kopie zip i raporty robi wyłącznie proces główny (testy porównują 1 i 4 procesy bajt w bajt).
+6. **Ten sam kod na Windowsie i macOS** (procesy metodą `spawn`); gdy równoległość nie wystartuje, skrypt sam przechodzi na tryb sekwencyjny z ostrzeżeniem.
+7. **Bezpieczeństwo zmian:** `poprawki_wstecz.py` i `czkawka_przeglad.py --napraw` robią kopię zip przed zapisem, weryfikują wynik i (pierwszy z nich) mają bezpiecznik.
+
+| Zadanie (ALIENWARE, i7-8750H) | Stara wersja | Nowa, 1 proces | Nowa, równolegle |
+|---|---:|---:|---:|
+| `rozdziel`, 6,9 MB | 131,9 s | 11,7 s | (bez równoległości) |
+| słownik wstecz, 410 MB (2 850 plików) | ok. 54 min (szacunek) | 91,9 s | **21,7 s** (6 procesów) |
+| czkawka, 60 plików | 8,6 s | 8,4 s | **4,6 s** (4 procesy) |
+| czkawka, 224 pliki | 305,6 s | | **127,5 s** (4 procesy) |
+
+Sprawdzenie na danym komputerze (na Macu `python3`): `python litert-rozdziel/scripts/rownolegle.py --samotest`, potem `python tests/test_rownoleglosc.py` (nie wymaga korpusu `Wymina`) i `python tests/test_slownik_rownowaznosc.py`.
 
 ## Cięcie linii (przed i po tłumaczeniu)
 
@@ -148,12 +219,3 @@ Oba skrypty czytają pliki z automatycznym wykrywaniem kodowania (UTF-16 z BOM, 
 ## Użycie jako skill Claude
 
 Każdy folder (`litert/`, `litert-rozdziel/`) zawiera `SKILL.md` i skrypty w `scripts/`. Skille wywołuje się, podając Claude ścieżkę katalogu, np. "scal C:\...\NAZWA" albo "rozdziel C:\...\NAZWA". Po zmianie kodu trzeba przebudować paczki `.skill` i zapisać je w Claude (Save skill); nowa wersja pojawia się w następnej sesji.
-
-## Wydajność, równoległość i testy (od 2026-11-11)
-
-Wszystko działa tak samo na Windowsie i macOS (`python3` na Macu).
-
-- **Słownik poprawek jest 37–40× szybszy** (prefiltr reguł, wynik identyczny), więc `rozdziel` jest ok. 6× szybszy.
-- **Równoległość** (`litert-rozdziel/scripts/rownolegle.py`): `--procesy N` w `czkawka_przeglad.py` i `poprawki_wstecz.py` (1 = bez równoległości; domyślnie polowa watkow procesora, 1–6; zmienna `LITERT_PROCESY`); awaryjnie sekwencyjnie. Samotest: `python rownolegle.py --samotest`.
-- **Poprawki słownika wstecz**: `python litert-rozdziel/scripts/poprawki_wstecz.py --sucho`, potem bez `--sucho` (kopia zip, weryfikacja, bezpiecznik; domyślnie katalogi `_4`).
-- **Testy**: `python tests/test_rownoleglosc.py` (dane syntetyczne, bez korpusu) i `python tests/test_slownik_rownowaznosc.py`.
