@@ -71,7 +71,28 @@ Komputer: `ALIENWARE` (Intel Core i7-8750H, 6 rdzeni / 12 wątków, Windows 11, 
 | czkawka, 60 tłumaczeń (2,6 MB) | 8,6 s | 8,4 s | 5,5 s (2), **4,6 s (4)**, 4,7 s (6) | równoległość 1,9× |
 | czkawka, 224 tłumaczenia | 305,6 s | | **127,5 s** (4 procesy) | równoległość 2,4× |
 
-Zastrzeżenia: to **pojedyncze pomiary** (powtórzony był tylko `rozdziel`: 11,7 s i 11,7 s). Czas starej wersji słownika dla całych 410 MB jest szacunkiem z próbki (pełny pomiar trwałby godzinę). Przy czkawce zysk powyżej 4 procesów ogranicza start procesów (ok. 1–1,5 s) i nierówny rozkład pracy (kilka dużych plików). Na `XPS13` (4 rdzenie) spodziewaj się mniejszego zysku niż na `ALIENWARE`.
+Zastrzeżenia: to **pojedyncze pomiary** (powtórzony był tylko `rozdziel`: 11,7 s i 11,7 s). Czas starej wersji słownika dla całych 410 MB jest szacunkiem z próbki (pełny pomiar trwałby godzinę). Przy czkawce zysk powyżej 4 procesów ogranicza start procesów (ok. 1–1,5 s) i nierówny rozkład pracy (kilka dużych plików). Pomiary z `DELLXPS13` (4 rdzenie, komputer zajęty) są w następnej podsekcji; tam zysk wyszedł **wyższy**, nie niższy.
+
+### DELLXPS13 (pomiar z 2026-11-11, komputer zajęty)
+
+Komputer: Intel Core i7-8550U (4 rdzenie / 8 wątków, 1,8 GHz bazowo), Windows 11, Python 3.14.10, plan zasilania „Wysoka wydajność”, zasilanie sieciowe, 15,8 GB RAM. **Warunki pomiaru:** obciążenie procesora ok. 100%, wolna pamięć tylko 0,9–1,6 GB, w tle m.in. Claude, ChatGPT, codex, IObit Uninstaller, Dropbox i antywirus Kaspersky (`avp`). Liczby opisują więc **praktyczne warunki pracy**, a nie czyste skalowanie, a szum pomiarowy był duży.
+
+| Zadanie | 1 proces | 2 procesy | 4 procesy | 6 procesów |
+|---|---:|---:|---:|---:|
+| czkawka, 100 prawdziwych plików (4,1 MB), 2 przebiegi każdej konfiguracji | 111,0 s i 76,6 s | 36,0 s i 33,9 s (**2,3×**) | 22,8 s i 24,6 s (**3,4×**) | 26,3 s i 18,0 s (**4,2×**) |
+| `poprawki_wstecz.py --sucho`, 2 850 plików (410 MB) | 234,9 s i 230,6 s | | 100,3 s, 113,4 s i 72,6 s (tryb automatyczny) (**2,1–3,2×**) | |
+
+Wynik czkawki (plik CSV) był identyczny we wszystkich 8 przebiegach, a 8 miejsc znalezionych przez `poprawki_wstecz.py` (6 × `– okrzyknął`, 2 × `natrzymałem`) takie same dla każdej liczby procesów. Pełny `tests/test_rownoleglosc.py` przeszedł.
+
+Jak czytać te liczby:
+
+- **Szum:** ta sama konfiguracja dawała wyniki różniące się nawet o 45% (czkawka, 1 proces: 111 s i 77 s; poprawki, 4 procesy: 100 s i 73 s). Podane przyspieszenia czkawki liczono względem najlepszego przebiegu jednoprocesowego (76,6 s).
+- **Zysk wyższy niż w teście na czystym Pythonie** (2,1× przy 4 i 2,6× przy 6 procesach). Prawdopodobne przyczyny: system przydziela więcej czasu zadaniu z wieloma procesami, gdy komputer jest obciążony innymi aplikacjami, a procesy nakładają oczekiwanie na dysk i antywirus.
+- **6 procesów vs 4:** w czkawce średnio 22,2 s wobec 23,7 s, czyli różnica w granicach szumu. Ustawienie automatyczne (4) jest rozsądne, zwłaszcza przy małej wolnej pamięci.
+- **Tempo bezwzględne było tu gorsze niż na `ALIENWARE`** (skan 410 MB 231–235 s wobec 92 s). Przy mało wolnej pamięci cache dysku się nie utrzymuje, a antywirus skanuje każdy odczyt; test na czystym Pythonie przy mniejszym obciążeniu pokazywał jeden wątek `XPS13` jako szybszy, więc różnica wynika z warunków, a nie z procesora.
+- **Start procesów jest wolny:** samotest (12 krótkich zadań w 3 procesach) trwał 31,8 s zamiast ok. 1 s. Przy zadaniach trwających minuty nie ma to znaczenia, a małe zadania chroni próg ok. 400 KB (tryb automatyczny wybiera wtedy tryb sekwencyjny).
+
+Zalecenia dla tego komputera: zostaw ustawienie automatyczne (4); przy ciężkich zadaniach zamknij zbędne aplikacje; przy braku pamięci użyj `--procesy 2` (nadal ok. 2,3×); rozważ dodanie katalogu repozytorium i Pythona do wyjątków antywirusa (ustawienie systemowe, które należy do użytkownika).
 
 ## Jak to działa
 
@@ -119,13 +140,14 @@ python tests/test_slownik_rownowaznosc.py
 - `tests/test_rownoleglosc.py`: **nie wymaga korpusu `Wymina`** (buduje dane syntetyczne). Sprawdza samotest, czkawkę (CSV, wydruk i pliki po `--napraw` dla 1 i 4 procesów, zwykłe podwojenia usunięte, `Sam sam` zostaje, kopia zip zgodna z oryginałami) oraz `poprawki_wstecz.py` (1 vs 4 procesów, drugi przebieg bez zmian).
 - `tests/test_slownik_rownowaznosc.py [N]`: porównuje starą i nową implementację słownika; część na prawdziwych plikach pomija się, gdy nie ma korpusu.
 
-Przetestowano: Windows 11 + Python 3.14.10 (`ALIENWARE`: pełny zestaw testów i pomiary; `XPS13`: test równoległości na czystym Pythonie), Linux + Python 3.12 (samotest). **macOS: kod jest napisany pod macOS (ten sam `spawn`, brak zależności od Windowsa), ale testów jeszcze tam nie uruchomiono.**
+Przetestowano: Windows 11 + Python 3.14.10 (`ALIENWARE`: pełny zestaw testów i pomiary; `XPS13`: pełny zestaw testów i pomiary), Linux + Python 3.12 (samotest). **macOS: kod jest napisany pod macOS (ten sam `spawn`, brak zależności od Windowsa), ale testów jeszcze tam nie uruchomiono.**
 
 ## Rozwiązywanie problemów
 
 | Objaw | Przyczyna i co zrobić |
 |---|---|
 | `SAMOTEST: OK, ale bez rownoleglosci` albo ostrzeżenie `UWAGA: rownoleglosc niedostepna (...)` | Równoległość nie wystartowała (ograniczone środowisko, brak uprawnień, brak pamięci), a skrypt pracuje sekwencyjnie. Wynik jest poprawny, tylko wolniejszy. Sprawdź uprawnienia i program antywirusowy, uruchom z innego terminala. |
+| Start procesów trwa kilka sekund (samotest dziesiątki sekund) | Typowe na obciążonym komputerze z antywirusem i małą wolną pamięcią (na `XPS13` samotest: 31,8 s). Skrypty działają poprawnie; dla małych zadań tryb automatyczny sam wybiera tryb sekwencyjny. Pomaga zamknięcie zbędnych aplikacji i wyjątek antywirusa dla Pythona i repozytorium. |
 | Wolniej niż sekwencyjnie przy małych zadaniach | Start procesów kosztuje 0,3–1,5 s. Tryb automatyczny sam wybiera tryb sekwencyjny dla zadań poniżej ok. 400 KB; przy jawnym `--procesy N` użyj `--procesy 1`. |
 | Zawieszenie lub brak postępu | Pierwsze wyniki pojawiają się po zakończeniu pierwszego katalogu/pliku; przy bardzo dużych plikach to potrwa. Sprawdź obciążenie procesora w menedżerze zadań. |
 | Brak pamięci | Zmniejsz liczbę procesów: `--procesy 2` albo `LITERT_PROCESY=2`. |
@@ -134,3 +156,4 @@ Przetestowano: Windows 11 + Python 3.14.10 (`ALIENWARE`: pełny zestaw testów i
 ## Historia
 
 - **2026-11-11:** prefiltr słownika w `rozdziel.py` (identyczny wynik, `rozdziel` ok. 11× szybszy), moduł `rownolegle.py`, `--procesy` w `czkawka_przeglad.py`, nowe narzędzie `poprawki_wstecz.py`, testy w `tests/`, ten dokument.
+- **2026-11-11 (wieczór):** pomiary na `DELLXPS13` (komputer zajęty): równoległość dała 2–4×; opis warunków i zastrzeżeń w podsekcji „DELLXPS13”.

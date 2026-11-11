@@ -135,6 +135,8 @@ Pełny opis (zasady, pomiary, wzorzec kodu, rozwiązywanie problemów): **[docs/
 | czkawka, 60 plików | 8,6 s | 8,4 s | **4,6 s** (4 procesy) |
 | czkawka, 224 pliki | 305,6 s | | **127,5 s** (4 procesy) |
 
+Na `DELLXPS13` (4 rdzenie, komputer zajęty) równoległość dała 2–4×; szczegóły i zastrzeżenia: [docs/ROWNOLEGLOSC.md](docs/ROWNOLEGLOSC.md#wyniki-pomiarów).
+
 Sprawdzenie na danym komputerze (na Macu `python3`): `python litert-rozdziel/scripts/rownolegle.py --samotest`, potem `python tests/test_rownoleglosc.py` (nie wymaga korpusu `Wymina`) i `python tests/test_slownik_rownowaznosc.py`.
 
 ## Cięcie linii (przed i po tłumaczeniu)
