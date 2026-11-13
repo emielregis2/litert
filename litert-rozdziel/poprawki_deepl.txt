@@ -308,3 +308,21 @@ natrzymałem => natarłem
 – okrzyknął => – krzyknął
 – okrzyknęły => – krzyknęły
 ”, okrzyknął => ”, krzyknął
+
+# Dopisane 2026-11-13
+# zrumienic sie -> zarumienic sie (rumieniec) w pozostalych osobach i rodzajach: ta sama usterka DeepL co 'zrumienila sie' (zgloszenie Darka); korpus: zrumienilam 156, zrumienil 127, zrumienilem 121 itd. (razem ok. 600 form, w otoczeniu slow kuchennych tylko ok. 5). Reguly TYLKO z 'sie' (i 'zrumieniona jak burak'): 'zrumienic' jest poprawne w kuchni ('zrumienila cebule', 'zrumienil mieso', 'zrumieniona skorka') i takie uzycia zostaja. Znane ryzyko: 'chleb sie zrumienil' (kuchnia, rodzaj meski z 'sie') zostanie zmienione; w korpusie niemal nie wystepuje. Formy bez 'sie' i odwrocony szyk ('sie zrumienila') - do przegladu
+zrumieniłam się => zarumieniłam się
+zrumieniłem się => zarumieniłem się
+zrumienił się => zarumienił się
+zrumienili się => zarumienili się
+zrumieniły się => zarumieniły się
+zrumieniłaś się => zarumieniłaś się
+zrumieniłeś się => zarumieniłeś się
+zrumieniłabym się => zarumieniłabym się
+zrumieniłbym się => zarumieniłbym się
+zrumieniłaby się => zarumieniłaby się
+zrumieniłby się => zarumieniłby się
+zrumieniliśmy się => zarumieniliśmy się
+zrumieniłyśmy się => zarumieniłyśmy się
+zrumieniona jak burak => zarumieniona jak burak
+zrumieniony jak burak => zarumieniony jak burak
