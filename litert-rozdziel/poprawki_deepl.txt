@@ -326,3 +326,37 @@ zrumieniliśmy się => zarumieniliśmy się
 zrumieniłyśmy się => zarumieniłyśmy się
 zrumieniona jak burak => zarumieniona jak burak
 zrumieniony jak burak => zarumieniony jak burak
+
+# Dopisane 2026-11-15
+# pieszczac -> piescic: DeepL daje pieszczaliśmy/pieszczali/pieszczeli zamiast pieściliśmy/pieścili (zgloszenie Darka; korpus 2026-11-15: pieszczaliśmy 279, pieszczali 267, pieszczeli 194, pieszczeliśmy 43, pieszczać 17). Poprawne formy (pieszcząc, pieszczoty, pieszczotliwie, pieszczony, pieszczono, pieszczę, pieszcz) zostaja, bo silnik dopasowuje cale slowa
+pieszczaliśmy => pieściliśmy
+pieszczeliśmy => pieściliśmy
+pieszczaliście => pieściliście
+pieszczeliście => pieściliście
+pieszczali => pieścili
+pieszczeli => pieścili
+pieszczać => pieścić
+pieszczał => pieścił
+pieszczała => pieściła
+pieszczało => pieściło
+pieszczały => pieściły
+pieszczałem => pieściłem
+pieszczałam => pieściłam
+pieszczałeś => pieściłeś
+pieszczałaś => pieściłaś
+pieszczałyśmy => pieściłyśmy
+# zadliwie -> pozadliwie: brak przedrostka 'po' (zgloszenie Darka; korpus: zadliwie 16, pozostale po 1; wszystkie konteksty to 'pozadliwie')
+żądliwie => pożądliwie
+żądliwy => pożądliwy
+żądliwym => pożądliwym
+żądliwą => pożądliwą
+żądliwości => pożądliwości
+# odryslaly -> rysowaly: nieistniejacy czasownik 'odryslac' (zgloszenie Darka: 'sutki odryslaly sie pod cienkim materialem'; korpus: 1 trafienie); pozostale formy z analogii
+odryślał => rysował
+odryślała => rysowała
+odryślało => rysowało
+odryślały => rysowały
+odryślali => rysowali
+# w mnie -> we mnie: ZASADA OBOWIAZUJACA (decyzja Darka 2026-11-15), 999 trafien w korpusie. 'w w mnie' (15 trafien) najpierw sciagamy do 'we mnie' (podwojone 'w'), zeby nie wyszlo 'w we mnie'. Regula 'w w mnie' MUSI stac przed 'w mnie'
+w w mnie => we mnie
+w mnie => we mnie
