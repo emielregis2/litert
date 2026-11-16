@@ -360,3 +360,18 @@ odryślali => rysowali
 # w mnie -> we mnie: ZASADA OBOWIAZUJACA (decyzja Darka 2026-11-15), 999 trafien w korpusie. 'w w mnie' (15 trafien) najpierw sciagamy do 'we mnie' (podwojone 'w'), zeby nie wyszlo 'w we mnie'. Regula 'w w mnie' MUSI stac przed 'w mnie'
 w w mnie => we mnie
 w mnie => we mnie
+
+# Dopisane 2026-11-16
+# lizac: DeepL daje 'lizona/lizono/lizone' zamiast 'lizana/lizano/lizane' (zgloszenie Darka); 'lizon-' nie istnieje po polsku. Korpus 2026-11-16: 70 trafien (lizona 35, lizono 25, lizone 6, lizonej 2, lizona (biernik) 1, lizonego 1; w katalogach _4: 36); formy lizony/lizonym/lizonych/lizonymi/lizonemu/lizoni z analogii
+liżona => lizana
+liżono => lizano
+liżone => lizane
+liżonej => lizanej
+liżoną => lizaną
+liżonego => lizanego
+liżony => lizany
+liżonym => lizanym
+liżonych => lizanych
+liżonymi => lizanymi
+liżonemu => lizanemu
+liżoni => lizani
