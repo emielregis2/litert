@@ -206,7 +206,7 @@ def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0, ciecie=0, limit=0, petle=
         if not f.lower().endswith(".txt") or f.lower().endswith(" pl.txt") or re.search(r"_all|_spis|_raport|^DO_PRZETLUMACZENIA", f, re.I):
             continue
         baza = f[:-4]
-        if nazwy and baza.lower() not in nazwy:
+        if nazwy and baza.lower().strip() not in nazwy:
             continue
         wp = os.path.join(d, baza + " pl.txt")
         if not os.path.isfile(wp):
@@ -290,7 +290,7 @@ def main():
     pliki, pominiete = zbierz_plan(d, a.prog, nazwy, not a.bez_tur, a.min_odcinek, a.ciecie_po, a.limit_linii, a.petle, linie)
     for b, powod in pominiete:
         print("POMINIETO %s: %s" % (b, powod))
-    for nz in sorted(nazwy - {p["baza"].lower() for p in pliki} - {b.lower() for b, _ in pominiete}):
+    for nz in sorted(nazwy - {p["baza"].lower().strip() for p in pliki} - {b.lower().strip() for b, _ in pominiete}):
         print("UWAGA: nie znaleziono pliku do naprawy (brak dlugiej linii, oryginalu albo wyniku): " + nz)
     if not pliki:
         print("Brak plikow do naprawy.")
