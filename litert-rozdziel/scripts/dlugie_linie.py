@@ -195,14 +195,40 @@ def czytaj_linie(p):
     return t.replace("\r\n", "\n").strip("\n").split("\n")
 
 
+def znajdz_petle_znaku(linia, zrodlo="", min_ciag=60):
+    """Petla znaku DeepL (np. 'EEEE...' albo setki liter 'e' z ogonkiem): >= min_ciag takich samych znakow (nie bialych) obok siebie w linii wyniku,
+    ponad 2 x dluzsza niz najdluzszy ciag tego znaku w odpowiedniej linii zrodla. To ta sama regula co kontrola w rozdziel.py (--min-ciag), ale dla
+    KAZDEGO znaku, takze polskich liter. Zwraca (dlugosc, znak) najdluzszej petli albo None."""
+    wynik = None
+    for m in re.finditer(r"([^\s])\1{%d,}" % (min_ciag - 1), linia):
+        c, dl = m.group(1), len(m.group(0))
+        baza = max((len(x.group(0)) for x in re.finditer(re.escape(c) + "+", zrodlo or "")), default=0)
+        if dl > 2 * baza and (wynik is None or dl > wynik[0]):
+            wynik = (dl, c)
+    return wynik
+
+
+def pary_zrodel(d):
+    """Pary (folder, nazwa) oryginalow: najpierw katalog glowny (oryginaly biezacej partii, jeszcze nieprzeniesione do org),
+    potem podkatalog org (oryginaly wczesniejszych partii); gdy ta sama nazwa jest w obu, wygrywa katalog glowny."""
+    org = os.path.join(d, "org")
+    foldery = [d] + ([org] if os.path.isdir(org) else [])
+    widziane, wyniki = set(), []
+    for fo in foldery:
+        for f in os.listdir(fo):
+            if os.path.isfile(os.path.join(fo, f)) and f.lower() not in widziane:
+                widziane.add(f.lower())
+                wyniki.append((fo, f))
+    return sorted(wyniki, key=lambda x: x[1].lower())
+
+
 def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0, ciecie=0, limit=0, petle=False, linie=None):
     """Zwraca (lista plikow do naprawy: dict z kluczami baza, Lo, dlugie [(j, kawalki, odstepy)], idx {j: indeks linii wyniku}, petle {j: (dlugosc, slowo)},
     wynik), lista pominietych). Wybor linii: domyslnie linie oryginalu dluzsze niz 'prog'; z 'petle' linie, w ktorych WYNIK ma petle slow DeepL;
     z 'linie' (lista numerow od 1) wskazane linie."""
     rz = zaladuj_rozdziel() if petle else None
-    zrodlo = os.path.join(d, "org") if os.path.isdir(os.path.join(d, "org")) else d
     pliki, pominiete = [], []
-    for f in sorted(os.listdir(zrodlo), key=str.lower):
+    for zrodlo, f in pary_zrodel(d):
         if not f.lower().endswith(".txt") or f.lower().endswith(" pl.txt") or re.search(r"_all|_spis|_raport|^DO_PRZETLUMACZENIA", f, re.I):
             continue
         baza = f[:-4]
@@ -216,16 +242,21 @@ def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0, ciecie=0, limit=0, petle=
         nb_o = [i for i, x in enumerate(Lo) if x.strip()]
         nb_r = [i for i, x in enumerate(R) if x.strip()]
         zgodne = len(nb_o) == len(nb_r)
-        wybrane, info = None, {}
+        wybrane, info, rodz = None, {}, {}
         if petle or linie:
             wybrane = {n - 1 for n in (linie or []) if 0 < n <= len(Lo)}
             if petle and zgodne:
                 for t_i, k in enumerate(nb_r):
                     if len(R[k]) >= 40:
                         w = rz.znajdz_petle_slow(R[k], Lo[nb_o[t_i]])
+                        rd = "s"
+                        if not w:
+                            w = znajdz_petle_znaku(R[k], Lo[nb_o[t_i]])
+                            rd = "z"
                         if w:
                             wybrane.add(nb_o[t_i])
                             info[nb_o[t_i]] = w
+                            rodz[nb_o[t_i]] = rd
         dlugie = []
         for j, l in enumerate(Lo):
             if (j in wybrane) if wybrane is not None else (len(l) > prog):
@@ -245,7 +276,7 @@ def zbierz_plan(d, prog, nazwy, tury=False, min_odc=0, ciecie=0, limit=0, petle=
             pominiete.append((baza, "rozna liczba linii z trescia: oryginal %d, wynik %d" % (len(nb_o), len(nb_r))))
             continue
         pozycja = {j: k for k, j in enumerate(nb_o)}
-        pliki.append({"baza": baza, "Lo": Lo, "dlugie": dlugie, "idx": {j: nb_r[pozycja[j]] for j, _, _ in dlugie}, "petle": info, "wynik": wp})
+        pliki.append({"baza": baza, "Lo": Lo, "dlugie": dlugie, "idx": {j: nb_r[pozycja[j]] for j, _, _ in dlugie}, "petle": info, "rodzaj": rodz, "wynik": wp})
     return pliki, pominiete
 
 
@@ -265,7 +296,7 @@ def main():
     ap.add_argument("--min-odcinek", type=int, default=0, help="z --dziel-tury: minimalna dlugosc odcinka w znakach (domyslnie 0 = ciecie w kazdej granicy)")
     ap.add_argument("--ciecie-po", type=int, default=0, help="po osiagnieciu tylu znakow tnij na najblizszej kropce (jak w scal.py --ciecie-po); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
     ap.add_argument("--limit-linii", type=int, default=800, help="twardy limit dlugosci kawalka w znakach (domyslnie 800, jak w scal.py --limit-linii; 0 = wylaczone); przy --zastosuj uzyj tych samych flag co przy --przygotuj")
-    ap.add_argument("--petle", action="store_true", help="zamiast dlugich linii wybierz linie, w ktorych WYNIK ma petle slow DeepL (np. 'krzakowata' x 88); plik pomocniczy ma koncowke _petle")
+    ap.add_argument("--petle", action="store_true", help="zamiast dlugich linii wybierz linie, w ktorych WYNIK ma petle slow DeepL (np. 'krzakowata' x 88) albo petle znaku (60+ takich samych znakow, takze polskich liter); plik pomocniczy ma koncowke _petle")
     ap.add_argument("--linie", default="", help="zamiast dlugich linii wybierz wskazane linie (numery od 1 rozdzielone srednikiem; dokladnie jeden plik w --pliki); plik pomocniczy ma koncowke _linie")
     ap.add_argument("--sucho", action="store_true", help="z --zastosuj: tylko sprawdz, nic nie zapisuj")
     a = ap.parse_args()
@@ -343,7 +374,7 @@ def main():
                     zle.append("%s linia %d, kawalek %d z %d: stosunek dlugosci %.2f" % (p["baza"][:40], j + 1, n_k, len(kaw), rk))
             linia, zam = rz.zastosuj_poprawki(rz._sklej_kawalki(tl, sp), reguly)
             lacznie_zam.update(zam)
-            wp2 = rz.znajdz_petle_slow(linia, p["Lo"][j])
+            wp2 = rz.znajdz_petle_slow(linia, p["Lo"][j]) or znajdz_petle_znaku(linia, p["Lo"][j])
             if wp2:
                 zle.append("%s linia %d: w nowym tlumaczeniu nadal petla slow (%d x '%s') - przygotuj z mniejszym --limit-linii (np. 400)" % (p["baza"][:40], j + 1, wp2[0], wp2[1][:30]))
             nowe[p["idx"][j]] = linia

@@ -112,6 +112,12 @@ Objaw: `UWAGA: ... NIE zlozono dlugich linii: uklad linii wyniku (728) nie zgadz
 
 Wzorcowe skrypty pomocnicze z tej naprawy (nie są w repozytorium): `diag_uklad_*.py`, `przygotuj_okno_*.py`, `podmien_okno_*.py` w `AI_Claude\Projekt TripleX\narzedzia_pomocnicze`.
 
+## Automat napraw pętli: `napraw_auto.py` (od 2026-11-20; bez API DeepL)
+
+`python scripts/napraw_auto.py KATALOG [--limity 800,400,200] [--czekaj-min 120] [--pobrane DIR] [--projekt-dir DIR] [--bez-sprzatania]` prowadzi rundy naprawy pętli za Ciebie (stała reguła C→B): przygotowuje plik `DO_PRZETLUMACZENIA_<Katalog>_petle.txt` (limit kawałka z pierwszej wartości `--limity`), **czeka** na `... _petle pl.txt` (w katalogu albo w Pobranych; Darek tłumaczy w DeepL i zapisuje), stosuje wynik po wszystkich kontrolach `dlugie_linie.py`, a gdy pętla wraca, ponawia z mniejszym limitem kawałka (800 → 400 → 200). Po wyczerpaniu rund przechodzi sam na **wariant B** (raport pozycji w `raporty\`, odrzucone wyniki rund w `kopie_zapasowe\`, bez pytania Darka) i kończy `--tylko-sprzatanie`. Kody wyjścia: 0 naprawiono, 3 wariant B, 4 przekroczony czas oczekiwania, 5 rozjazd układu linii (wynik ma inną liczbę linii z treścią niż oryginał: automat go wypisuje jako `ROZJAZD UKLADU`, nie naprawia i **nie sprząta katalogu**; dalej sekcja „Rozjazd układu po pętli”), 1 błąd. Darek robi w DeepL tylko jedno: tłumaczy plik pomocniczy i zapisuje go pod podaną nazwą; resztę robi skrypt. Testy: `python tests/test_napraw_auto.py`.
+
+Zmiany w `dlugie_linie.py` z tej samej daty: `--petle` wykrywa też pętle pojedynczego znaku (np. polskiej litery, `--min-ciag`), oryginały są szukane także w podkatalogu `org`, a `--pliki` toleruje spację na końcu nazwy.
+
 ## Etapowanie przy ponownym tłumaczeniu (stare tłumaczenia giną dopiero po sukcesie)
 
 Cel (decyzja Darka z 2026-10-29): stare tłumaczenie nie może zostać zniszczone przez nowe, które nie przejdzie weryfikacji. Gdy `rozdziel` wykryje w katalogu głównym istniejące wyniki `X pl.txt` dla plików ze spisu (czyli ponowne tłumaczenie, np. nowszym modelem DeepL), robi tak:
