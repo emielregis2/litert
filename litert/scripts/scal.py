@@ -24,7 +24,7 @@ def jest_tlumaczeniem_pl(nazwa):
 
 # Pliki techniczne NIGDY nie sa oryginalami: pliki scalenia 'X_all.txt' / 'X_all_N.txt' (i ich tlumaczenia 'pl'), spisy, raporty i listy z rozdziel, plik DO_PRZETLUMACZENIA.
 # W org nosza nazwe katalogu z chwili pracy (np. po zmianie Katalog_3 -> Katalog_4), wiec rozpoznajemy je po koncowce, a nie po nazwie katalogu.
-_TECH_RX = re.compile(r"(_all(_\d+)?|_spis_scalenia|_raport_naprawy|_tury_pl|_akapity|_poprawki_reczne|_przebieg_rozdziel)(\s+pl)?\.txt$|^DO_PRZETLUMACZENIA", re.I)
+_TECH_RX = re.compile(r"(_all(_\d+)?|_spis_scalenia|_raport_naprawy(\s+\d{4}-\d{2}-\d{2})?|_tury_pl|_akapity|_poprawki_reczne|_przebieg_rozdziel)(\s+pl)?\.txt$|^DO_PRZETLUMACZENIA", re.I)
 
 
 def jest_techniczny(nazwa):
@@ -428,10 +428,14 @@ def main():
     ap.add_argument("--czesci-osobno", action="store_true",
                     help="stary format: czesci duzych plikow (> limit) zapisuj jako osobne pliki NazwaOryginalu_N.txt poza seria Katalog_all_N "
                          "(domyslnie czesci sa pakowane do serii Katalog_all_N RAZEM z malymi plikami i wgrywasz do DeepL jedna serie)")
+    ap.add_argument("--z-org", action="store_true",
+                    help="WYJATEK, tylko na wyrazne polecenie Darka dla danego katalogu: dobierz do scalania WSZYSTKIE oryginaly z podkatalogu org "
+                         "(ponowne tlumaczenie calego katalogu) PLUS nowe pliki z katalogu glownego. Domyslnie org jest ZIGNOROWANY")
     ap.add_argument("--bez-org", action="store_true",
-                    help="IGNORUJ podkatalog org: scalaj TYLKO oryginaly .txt z katalogu glownego (bez dobierania oryginalow z org); "
-                         "reszta dziala standardowo (domyslnie, gdy istnieje org, scalane sa oryginaly z org PLUS nowe pliki z katalogu glownego)")
+                    help="(zgodnosc ze starymi poleceniami; to jest teraz zachowanie DOMYSLNE) scalaj TYLKO oryginaly .txt z katalogu glownego")
     a = ap.parse_args()
+    if a.z_org and a.bez_org:
+        ap.error("--z-org i --bez-org wykluczaja sie")
 
     d = os.path.normpath(a.katalog)
     base = os.path.basename(d) + "_all"
@@ -473,7 +477,7 @@ def main():
     zrodla = {f: os.path.join(d, f) for f in cands}
     org_dir = os.path.join(d, "org")
     org_nazwy, zastepuja_org = [], []
-    if os.path.isdir(org_dir) and not a.bez_org:
+    if os.path.isdir(org_dir) and a.z_org:
         glowne_lower = {f.lower(): f for f in cands}
         for f in sorted(os.listdir(org_dir), key=str.lower):
             if os.path.isfile(os.path.join(org_dir, f)) and is_orig(f):
@@ -641,9 +645,10 @@ def main():
         fh.write("\n".join(spis).rstrip("\n") + "\n")
     print(spis_name, "zapisany")
     print("Pominiete (pl/_copy/techniczne) nie sa wypisywane; scalono plikow:", len({x[0] for x in items}))
-    if a.bez_org and os.path.isdir(org_dir):
-        print("Zrodla (--bez-org): podkatalog org zignorowany; scalono TYLKO pliki z katalogu glownego: %d" % len(names))
-    elif org_nazwy or zastepuja_org or os.path.isdir(org_dir):
+    if (not a.z_org) and os.path.isdir(org_dir):
+        n_org = sum(1 for f in os.listdir(org_dir) if os.path.isfile(os.path.join(org_dir, f)) and is_orig(f))
+        print("Zrodla (domyslnie): podkatalog org POMINIETY (%d oryginalow, maja juz tlumaczenia); scalono TYLKO pliki z katalogu glownego: %d. Aby dobrac org (ponowne tlumaczenie calosci): --z-org, tylko na polecenie Darka" % (n_org, len(names)))
+    elif a.z_org and (org_nazwy or zastepuja_org or os.path.isdir(org_dir)):
         print("Zrodla (wykryto podkatalog org): oryginaly z org: %d | nowe lub nowsze pliki w katalogu glownym: %d (w tym nowsze wersje zastepujace oryginal z org: %d)%s"
               % (len(org_nazwy), len(names) - len(org_nazwy), len(zastepuja_org), (": " + ", ".join(zastepuja_org[:5])) if zastepuja_org else ""))
     print("Kodowanie wejscia: " + ", ".join("%s: %d" % (k, v) for k, v in sorted(kodowania.items())))
